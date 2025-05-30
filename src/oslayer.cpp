@@ -54,7 +54,7 @@ void OSLayer::_execute_command(Command command) {
 
   if (0 != code) {
     this->error_lock.lock();
-    errors.push_back({command.origin, command.cmdline});
+    non_zero_processes.push_back(command.reference);
     this->error_lock.unlock();
   }
 }
@@ -66,7 +66,7 @@ std::optional<size_t> OSLayer::get_file_timestamp(std::string path) {
   return t_stat.ST_CTIME;
 }
 
-std::vector<ErrorContext> OSLayer::get_errors() { return this->errors; }
+// std::vector<ErrorContext> OSLayer::get_errors() { return this->errors; }
 
 // #define __SHELL_SUFFIX " 2>&1"
 //

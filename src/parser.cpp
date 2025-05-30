@@ -1,12 +1,8 @@
 #include "parser.hpp"
 #include "errors.hpp"
 #include "lexer.hpp"
+#include <iostream>
 #include <memory>
-
-#define ITERATOR_INTERNAL                                                      \
-  Identifier {                                                                 \
-    "__task__", InternalNode {}                                                \
-  }
 
 // equality operators for AST objects.
 bool Identifier::operator==(Identifier const &other) const {
@@ -30,56 +26,54 @@ bool Replace::operator==(Replace const &other) const {
 bool List::operator==(List const &other) const {
   return this->contents == other.contents;
 }
-
-// visitor that simply returns the origin of an AST object.
-struct ASTVisitOrigin {
-  Origin operator()(Identifier const &identifier) { return identifier.origin; }
-  Origin operator()(Literal const &literal) { return literal.origin; }
-  Origin operator()(FormattedLiteral const &formatted_literal) {
-    return formatted_literal.origin;
-  }
-  Origin operator()(List const &list) { return list.origin; }
-  Origin operator()(Boolean const &boolean) { return boolean.origin; }
-  Origin operator()(Replace const &replace) { return replace.origin; }
-};
+bool Field::operator==(Field const &other) const {
+  return this->identifier == other.identifier &&
+         this->expression == other.expression;
+}
+bool Task::operator==(Task const &other) const {
+  return this->identifier == other.identifier &&
+         this->iterator == other.iterator && this->fields == other.fields;
+}
 
 // initialises fields.
 Parser::Parser(std::vector<Token> token_stream) : m_ast() {
   m_token_stream = token_stream;
   m_index = 0;
-  // the origin should never be read, so we can keep this as an internalnode.
-  m_current = (m_token_stream.size() >= m_index + 1)
-                  ? m_token_stream[m_index]
-                  : Token{TokenType::Invalid, "__invalid__", InternalNode{}};
-  m_next = (m_token_stream.size() >= m_index + 2)
-               ? m_token_stream[m_index + 1]
-               : Token{TokenType::Invalid, "__invalid__", InternalNode{}};
+  if (m_token_stream.size() >= m_index + 1)
+    m_current = m_token_stream[m_index];
+  else
+    m_current = std::nullopt;
+  if (m_token_stream.size() >= m_index + 2)
+    m_next = m_token_stream[m_index + 1];
+  else
+    m_next = std::nullopt;
 }
 
 // token checking, no side effects.
 bool Parser::check_current(TokenType token_type) {
-  return m_current.type == token_type;
+  return m_current && m_current->type == token_type;
 }
 
 // token checking, no side effects.
 bool Parser::check_next(TokenType token_type) {
-  return m_next.type == token_type;
+  return m_next && m_next->type == token_type;
 }
 
 // consume a token.
-Token Parser::consume_token() { return consume_token(1); }
+std::optional<Token> Parser::consume_token() { return consume_token(1); }
 
 // consume n tokens.
-Token Parser::consume_token(int n) {
+std::optional<Token> Parser::consume_token(int n) {
   m_index += n;
-  m_previous = m_current;
-  // the origin should never be read, so we can keep it as 0.
-  m_current = (m_token_stream.size() >= m_index + 1)
-                  ? m_token_stream[m_index]
-                  : Token{TokenType::Invalid, "__invalid__", InternalNode{}};
-  m_next = (m_token_stream.size() >= m_index + 2)
-               ? m_token_stream[m_index + 1]
-               : Token{TokenType::Invalid, "__invalid__", InternalNode{}};
+  std::optional<Token> m_previous = m_current;
+  if (m_token_stream.size() >= m_index + 1)
+    m_current = m_token_stream[m_index];
+  else
+    m_current = std::nullopt;
+  if (m_token_stream.size() >= m_index + 2)
+    m_next = m_token_stream[m_index + 1];
+  else
+    m_next = std::nullopt;
   return m_previous;
 }
 
@@ -93,7 +87,7 @@ std::optional<Token> Parser::consume_if(TokenType token_type) {
 // parses the entire token stream.
 AST Parser::parse_tokens() {
   AST ast;
-  while (!check_current(TokenType::Invalid)) {
+  while (m_current) {
     std::optional<Field> field = parse_field();
     if (field) {
       ast.fields.push_back(*field);
@@ -104,7 +98,7 @@ AST Parser::parse_tokens() {
       ast.tasks.push_back(*task);
       continue;
     }
-    ErrorHandler::push_error_throw(m_current.origin, P_NO_MATCH);
+    // ErrorHandler::halt(EInvalidGrammar{m_current->reference});
   }
   return AST(ast);
 }
@@ -114,54 +108,51 @@ std::optional<Field> Parser::parse_field() {
   if (!check_current(TokenType::Identifier) || !check_next(TokenType::Equals))
     return std::nullopt;
 
-  Field field;
-  Token identifier_token = consume_token();
-  field.identifier = Identifier{std::get<CTX_STR>(*identifier_token.context),
-                                identifier_token.origin};
-  field.origin = identifier_token.origin;
+  Token identifier_token = *consume_token();
+  Identifier identifier = Identifier{
+      std::get<CTX_STR>(*identifier_token.context), identifier_token.reference};
+  StreamReference reference = identifier_token.reference;
   consume_token(); // consume the `=`.
 
   std::optional<ASTObject> ast_object = parse_ast_object();
-  if (!ast_object)
-    ErrorHandler::push_error_throw(field.origin, P_FIELD_NO_EXPR);
+  // if (!ast_object)
+  //   ErrorHandler::halt(ENoValue{identifier});
 
-  field.expression = *ast_object;
-  if (!consume_if(TokenType::LineStop))
-    ErrorHandler::push_error_throw(field.origin, P_FIELD_NO_LINESTOP);
-  return field;
+  ASTObject expression = *ast_object;
+  if (!consume_if(TokenType::LineStop)) {}
+    // ErrorHandler::halt(
+    //     ENoLinestop{m_current->reference}); // todo: not guaranteed?
+  return Field{identifier, expression, reference};
 }
 
 // attempts to parse a task.
 std::optional<Task> Parser::parse_task() {
   std::optional<ASTObject> identifier = parse_ast_object();
-  Identifier iterator = ITERATOR_INTERNAL;
   if (!identifier)
     return std::nullopt;
-  Origin origin = std::visit(ASTVisitOrigin{}, *identifier);
+  StreamReference reference = std::visit(ASTVisitReference{}, *identifier);
+  Identifier iterator = Identifier{"__task__", reference};
   // check if an explicit iterator name has been declared.
   if (consume_if(TokenType::IterateAs)) {
     std::optional<Token> iterator_token = consume_if(TokenType::Identifier);
-    if (!iterator_token)
-      ErrorHandler::push_error_throw(origin, P_TASK_NO_ITERATOR);
+    //   ErrorHandler::push_error_throw(origin, P_TASK_NO_ITERATOR);
     iterator = Identifier{std::get<CTX_STR>(*iterator_token->context),
-                          iterator_token->origin};
+                          iterator_token->reference};
   }
-  if (!consume_if(TokenType::TaskOpen))
-    ErrorHandler::push_error_throw(origin, P_TASK_NO_OPEN);
-
-  Task task;
-  task.identifier = *identifier;
-  task.iterator = iterator;
-  task.origin = origin;
+  if (!consume_if(TokenType::TaskOpen)) {
+  }
+  //   ErrorHandler::push_error_throw(origin, P_TASK_NO_OPEN);
 
   std::optional<Field> field;
+  std::vector<Field> fields;
   while ((field = parse_field()))
-    task.fields.push_back(*field);
+    fields.push_back(*field);
 
-  if (!consume_if(TokenType::TaskClose))
-    ErrorHandler::push_error_throw(origin, P_TASK_NO_CLOSE);
+  if (!consume_if(TokenType::TaskClose)) {
+  }
+  //   ErrorHandler::push_error_throw(origin, P_TASK_NO_CLOSE);
 
-  return task;
+  return Task{*identifier, iterator, fields, reference};
 }
 
 /*
@@ -178,31 +169,28 @@ std::optional<ASTObject> Parser::parse_ast_object() { return parse_list(); }
 
 // recursive descent parser, see grammar.
 std::optional<ASTObject> Parser::parse_list() {
-  List list;
-  list.origin = InternalNode{};
   std::optional<ASTObject> ast_obj;
   ast_obj = parse_replace();
+  std::vector<ASTObject> contents;
   while (ast_obj && consume_if(TokenType::Separator)) {
-    if (std::holds_alternative<InternalNode>(list.origin))
-      list.origin = std::visit(ASTVisitOrigin{}, *ast_obj);
-    list.contents.push_back(*ast_obj);
+    contents.push_back(*ast_obj);
     ast_obj = parse_ast_object();
   }
 
-  if (!ast_obj && !list.contents.empty())
-    ErrorHandler::push_error_throw(
-        std::visit(ASTVisitOrigin{}, list.contents[0]), P_AST_INVALID_END);
-  else if (!ast_obj && list.contents.empty())
+  if (!ast_obj && !contents.empty()) {
+  }
+  //   ErrorHandler::push_error_throw(
+  //       std::visit(ASTVisitOrigin{}, list.contents[0]), P_AST_INVALID_END);
+  else if (!ast_obj && contents.empty())
     return std::nullopt;
 
-  list.contents.push_back(*ast_obj);
-  if (std::holds_alternative<InternalNode>(list.origin))
-    list.origin = std::visit(ASTVisitOrigin{}, *ast_obj);
+  contents.push_back(*ast_obj);
 
-  if (list.contents.size() == 1)
-    return list.contents[0];
+  if (contents.size() == 1)
+    return contents[0];
+  StreamReference reference = std::visit(ASTVisitReference{}, contents[0]);
 
-  return list;
+  return List{contents, reference};
 }
 
 // recursive descent parser, see grammar.
@@ -210,21 +198,22 @@ std::optional<ASTObject> Parser::parse_replace() {
   std::optional<ASTObject> identifier = parse_primary();
   if (!consume_if(TokenType::Modify))
     return identifier; // not a replace.
-  Origin origin = std::visit(ASTVisitOrigin{}, *identifier);
+  StreamReference reference = std::visit(ASTVisitReference{}, *identifier);
 
   std::optional<ASTObject> original = parse_primary();
-  if (!consume_if(TokenType::Arrow))
-    ErrorHandler::push_error_throw(origin, P_AST_NO_ARROW);
+  if (!consume_if(TokenType::Arrow)) {
+  }
+  //   ErrorHandler::push_error_throw(origin, P_AST_NO_ARROW);
 
   std::optional<ASTObject> replacement = parse_primary();
-  if (!identifier || !original || !replacement)
-    ErrorHandler::push_error_throw(origin, P_AST_INVALID_REPLACE);
+  // if (!identifier || !original || !replacement)
+  //   ErrorHandler::push_error_throw(origin, P_AST_INVALID_REPLACE);
 
   return Replace{
       std::make_shared<ASTObject>(*identifier),
       std::make_shared<ASTObject>(*original),
       std::make_shared<ASTObject>(*replacement),
-      origin,
+      reference,
   };
 }
 
@@ -232,39 +221,43 @@ std::optional<ASTObject> Parser::parse_replace() {
 std::optional<ASTObject> Parser::parse_primary() {
   std::optional<Token> token;
   if ((token = consume_if(TokenType::Literal)))
-    return Literal{std::get<CTX_STR>(*token->context), token->origin};
+    return Literal{std::get<CTX_STR>(*token->context), token->reference};
   else if ((token = consume_if(TokenType::Identifier)))
-    return Identifier{std::get<CTX_STR>(*token->context), token->origin};
+    return Identifier{std::get<CTX_STR>(*token->context), token->reference};
   else if ((token = consume_if(TokenType::True)))
-    return Boolean{true, token->origin};
+    return Boolean{true, token->reference};
   else if ((token = consume_if(TokenType::False)))
-    return Boolean{false, token->origin};
+    return Boolean{false, token->reference};
   else if ((token = consume_if(TokenType::FormattedLiteral))) {
-    FormattedLiteral formattedLiteral;
+    std::vector<ASTObject> contents;
     std::vector<Token> internal_token_stream =
         std::get<CTX_VEC>(*token->context);
-    formattedLiteral.origin = internal_token_stream[0].origin;
+    StreamReference reference = internal_token_stream[0].reference;
     // note: only identifiers and literals may be present.
     for (size_t i = 0; i < internal_token_stream.size(); i++) {
       Token internal_token = internal_token_stream[i];
       if (internal_token.type == TokenType::Literal)
-        formattedLiteral.contents.push_back(Literal{
-            std::get<CTX_STR>(*internal_token.context), internal_token.origin});
+        contents.push_back(Literal{std::get<CTX_STR>(*internal_token.context),
+                                   internal_token.reference});
       else if (internal_token.type == TokenType::Identifier)
-        formattedLiteral.contents.push_back(Identifier{
-            std::get<CTX_STR>(*internal_token.context), internal_token.origin});
-      else
-        ErrorHandler::push_error_throw(internal_token.origin,
-                                       P_AST_INVALID_ESCAPE);
+        contents.push_back(
+            Identifier{std::get<CTX_STR>(*internal_token.context),
+                       internal_token.reference});
+      else {
+      }
+      // ErrorHandler::push_error_throw(internal_token.origin,
+      //                                P_AST_INVALID_ESCAPE);
     }
-    return formattedLiteral;
+    return FormattedLiteral{contents, reference};
   } else if ((token = consume_if(TokenType::ExpressionOpen))) {
     std::optional<ASTObject> ast_object = parse_ast_object();
-    if (!consume_if(TokenType::ExpressionClose))
-      ErrorHandler::push_error_throw(std::visit(ASTVisitOrigin{}, *ast_object),
-                                     P_AST_NO_CLOSE);
-    if (!ast_object)
-      ErrorHandler::push_error(token->origin, P_EMPTY_EXPRESSION);
+    if (!consume_if(TokenType::ExpressionClose)) {
+    }
+    //   ErrorHandler::push_error_throw(std::visit(ASTVisitOrigin{},
+    //   *ast_object),
+    //                                  P_AST_NO_CLOSE);
+    // if (!ast_object)
+    //   ErrorHandler::push_error(token->origin, P_EMPTY_EXPRESSION);
 
     return ast_object;
   }

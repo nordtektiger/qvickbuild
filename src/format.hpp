@@ -8,11 +8,13 @@
 
 // Disable coloured output if no interactive terminal is found
 #define GREEN (isatty(STDOUT_FILENO) ? "\033[32m" : "")
-#define RED (isatty(STDOUT_FILENO) ? "\033[31m" : "")
+#define GREY (isatty(STDOUT_FILENO) ? "\033[35m" : "")
+#define RED (isatty(STDOUT_FILENO) ? "\033[91m" : "")
 #define CYAN (isatty(STDOUT_FILENO) ? "\033[36m" : "")
 #define BOLD (isatty(STDOUT_FILENO) ? "\033[1m" : "")
-#define RESET (isatty(STDOUT_FILENO) ? "\033[0m" : "")
 #define ITALIC (isatty(STDOUT_FILENO) ? "\033[3m" : "")
+#define UNDERLINE (isatty(STDOUT_FILENO) ? "\033[4m" : "")
+#define RESET (isatty(STDOUT_FILENO) ? "\033[0m" : "")
 
 static std::mutex io_lock;
 

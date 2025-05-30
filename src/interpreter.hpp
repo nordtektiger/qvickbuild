@@ -1,6 +1,11 @@
 #ifndef INTERPRETER_H
 #define INTERPRETER_H
 
+struct IString;
+struct IBool;
+struct IList;
+struct IValue;
+
 #include "driver.hpp"
 #include "parser.hpp"
 #include <mutex>
@@ -8,22 +13,22 @@
 #include <vector>
 
 struct IString {
-  Origin origin;
+  StreamReference reference;
   std::string content;
 
   std::string toString() const;
-  IString();
+  IString() = delete;
   IString(Token);
-  IString(std::string, Origin);
+  IString(std::string, StreamReference);
   bool operator==(IString const other) const;
 };
 
 struct IBool {
-  Origin origin;
+  StreamReference reference;
   bool content;
-  IBool();
+  IBool() = delete;
   IBool(Token);
-  IBool(bool, Origin);
+  IBool(bool, StreamReference);
   operator bool() const;
   bool operator==(IBool const other) const;
 };
@@ -32,18 +37,26 @@ struct IBool {
 #define QBLIST_BOOL 1
 
 struct IList {
-  Origin origin;
+  StreamReference reference;
   std::variant<std::vector<IString>, std::vector<IBool>> contents;
-  bool holds_qbstring() const;
-  bool holds_qbbool() const;
-  IList();
-  IList(std::variant<std::vector<IString>, std::vector<IBool>>);
+  bool holds_istring() const;
+  bool holds_ibool() const;
+  IList() = delete;
+  IList(std::variant<std::vector<IString>, std::vector<IBool>>,
+        StreamReference reference);
   bool operator==(IList const other) const;
 };
 
 struct IValue {
   std::variant<IString, IBool, IList> value;
   bool immutable = true;
+  // IValue() = delete; // todo: consider implementation
+};
+
+struct IVisitReference {
+  StreamReference operator()(IString istring) { return istring.reference; };
+  StreamReference operator()(IBool ibool) { return ibool.reference; };
+  StreamReference operator()(IList ilist) { return ilist.reference; };
 };
 
 struct EvaluationContext {
@@ -58,7 +71,6 @@ struct ValueInstance {
   EvaluationContext context;
   IValue result;
 };
-
 struct EvaluationState {
   std::vector<ValueInstance> values;
 };
@@ -71,7 +83,7 @@ struct DependencyStatus {
 class Interpreter {
 private:
   AST &m_ast;
-  Setup m_setup;
+  Setup &m_setup;
   std::shared_ptr<EvaluationState> state;
   std::mutex evaluation_lock;
 
@@ -96,7 +108,7 @@ private:
   DependencyStatus solve_dependencies(IValue dependencies, bool parallel);
 
 public:
-  Interpreter(AST &ast, Setup setup);
+  Interpreter(AST &ast, Setup &setup);
   int build();
 };
 

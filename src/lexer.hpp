@@ -53,7 +53,6 @@ enum class TokenType {
   TaskClose,        // `}`
   True,             // `true`
   False,            // `false`
-  Invalid,          // internal return type in parser
 };
 
 // small struct for tracking the origin of symbols.
@@ -65,9 +64,13 @@ struct InputStreamPos {
     return this->index == other.index && this->line == other.line;
   }
 };
-struct InternalNode {};
-using ObjectReference = std::string;
-using Origin = std::variant<InputStreamPos, ObjectReference, InternalNode>;
+// struct InternalNode {};
+// using ObjectReference = std::string;
+// using Origin = std::variant<InputStreamPos, ObjectReference, InternalNode>;
+struct StreamReference {
+  size_t index;
+  size_t length;
+};
 
 struct Token;
 using TokenContext =
@@ -77,7 +80,7 @@ using TokenContext =
 struct Token {
   TokenType type;
   TokenContext context;
-  Origin origin; // index in original ascii stream
+  StreamReference reference;
 };
 
 // work class.
@@ -89,11 +92,9 @@ private:
   unsigned char m_current;
   unsigned char m_next;
   size_t m_index;
-  size_t _m_line;
 
   unsigned char consume_byte();
   unsigned char consume_byte(int n);
-  Origin get_local_origin();
 
   // here's the crazy macro magic.
   FUNCTION_DECLARE_ALL

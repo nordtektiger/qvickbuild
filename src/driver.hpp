@@ -1,8 +1,8 @@
 #ifndef DRIVER_H
 #define DRIVER_H
 
-#include "errors.hpp"
-
+struct Setup;
+// #include "errors.hpp"
 #include <optional>
 #include <string>
 #include <vector>
@@ -28,7 +28,7 @@ struct Setup {
 class Driver {
 private:
   Setup m_setup;
-  void display_error_stack(std::vector<unsigned char> config);
+  void unwind_errors(std::vector<unsigned char> config);
   std::vector<unsigned char> get_config();
 
 public:

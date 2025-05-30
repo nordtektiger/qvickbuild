@@ -12,7 +12,6 @@ inline bool is_alphabetic(char x) {
 // initializes new lexer.
 Lexer::Lexer(std::vector<unsigned char> input_bytes) {
   m_index = 0;
-  _m_line = 1;
   m_input = input_bytes;
   m_current = (m_input.size() >= m_index + 1) ? m_input[m_index] : '\0';
   m_next = (m_input.size() >= m_index + 2) ? m_input[m_index + 1] : '\0';
@@ -21,20 +20,11 @@ Lexer::Lexer(std::vector<unsigned char> input_bytes) {
 unsigned char Lexer::consume_byte() { return consume_byte(1); }
 
 unsigned char Lexer::consume_byte(int n) {
-  size_t original_index = m_index;
-  // loop to scan for newlines.
-  for (; m_index < original_index + n;) {
-    m_index++;
+  m_index += n;
     m_current = (m_input.size() >= m_index + 1) ? m_input[m_index] : '\0';
     m_next = (m_input.size() >= m_index + 2) ? m_input[m_index + 1] : '\0';
-    if (m_current == '\n')
-      _m_line++;
-  }
   return m_current;
 }
-
-// turn the current state into an origin.
-Origin Lexer::get_local_origin() { return InputStreamPos{m_index, _m_line}; }
 
 // gets next token from stream.
 std::vector<Token> Lexer::get_token_stream() {
@@ -51,7 +41,7 @@ std::vector<Token> Lexer::get_token_stream() {
     if (m_current == '\0')
       break;
     if (!match) {
-      ErrorHandler::push_error_throw(get_local_origin(), L_INVALID_SYMBOL);
+      ErrorHandler::halt(EInvalidSymbol{{m_index, 1}, std::to_string(m_current)});
     }
   }
   return m_token_stream;
@@ -77,7 +67,7 @@ std::optional<Token> Lexer::match_equals() {
   if (m_current != '=')
     return std::nullopt;
   consume_byte();
-  return Token{TokenType::Equals, std::nullopt, get_local_origin()};
+  return Token{TokenType::Equals, std::nullopt, {m_index - 1, 1}};
 }
 
 // match :
@@ -85,7 +75,7 @@ std::optional<Token> Lexer::match_modify() {
   if (m_current != ':')
     return std::nullopt;
   consume_byte();
-  return Token{TokenType::Modify, std::nullopt, get_local_origin()};
+  return Token{TokenType::Modify, std::nullopt, {m_index - 1, 1}};
 }
 
 // match ;
@@ -93,7 +83,7 @@ std::optional<Token> Lexer::match_linestop() {
   if (m_current != ';')
     return std::nullopt;
   consume_byte();
-  return Token{TokenType::LineStop, std::nullopt, get_local_origin()};
+  return Token{TokenType::LineStop, std::nullopt, {m_index - 1, 1}};
 }
 
 // match ->
@@ -101,7 +91,7 @@ std::optional<Token> Lexer::match_arrow() {
   if (!(m_current == '-' && m_next == '>'))
     return std::nullopt;
   consume_byte(2);
-  return Token{TokenType::Arrow, std::nullopt, get_local_origin()};
+  return Token{TokenType::Arrow, std::nullopt, {m_index - 2, 2}};
 }
 
 // match ,
@@ -109,7 +99,7 @@ std::optional<Token> Lexer::match_separator() {
   if (m_current != ',')
     return std::nullopt;
   consume_byte();
-  return Token{TokenType::Separator, std::nullopt, get_local_origin()};
+  return Token{TokenType::Separator, std::nullopt, {m_index - 1, 1}};
 }
 
 // match [
@@ -117,7 +107,7 @@ std::optional<Token> Lexer::match_expressionopen() {
   if (m_current != '[')
     return std::nullopt;
   consume_byte();
-  return Token{TokenType::ExpressionOpen, std::nullopt, get_local_origin()};
+  return Token{TokenType::ExpressionOpen, std::nullopt, {m_index - 1, 1}};
 }
 
 // match ]
@@ -125,7 +115,7 @@ std::optional<Token> Lexer::match_expressionclose() {
   if (m_current != ']')
     return std::nullopt;
   consume_byte();
-  return Token{TokenType::ExpressionClose, std::nullopt, get_local_origin()};
+  return Token{TokenType::ExpressionClose, std::nullopt, {m_index - 1, 1}};
 }
 
 // match {
@@ -133,7 +123,7 @@ std::optional<Token> Lexer::match_taskopen() {
   if (m_current != '{')
     return std::nullopt;
   consume_byte();
-  return Token{TokenType::TaskOpen, std::nullopt, get_local_origin()};
+  return Token{TokenType::TaskOpen, std::nullopt, {m_index - 1, 1}};
 }
 
 // match }
@@ -141,32 +131,29 @@ std::optional<Token> Lexer::match_taskclose() {
   if (m_current != '}')
     return std::nullopt;
   consume_byte();
-  return Token{TokenType::TaskClose, std::nullopt, get_local_origin()};
+  return Token{TokenType::TaskClose, std::nullopt, {m_index - 1, 1}};
 }
 
 // match literals
 std::optional<Token> Lexer::match_literal() {
   if (m_current != '\"')
     return std::nullopt;
+  size_t origin = m_index;
   consume_byte();
-  Token formatted_literal = Token{
-      TokenType::FormattedLiteral,
-      std::vector<Token>{},
-      get_local_origin(),
-  };
+
+  std::vector<Token> internal_stream;
   std::string substr;
   while (m_current != '\"') {
     if (m_current == '[') {
+      internal_stream.push_back(Token{TokenType::Literal, substr, {m_index - substr.size(), substr.size()}});
       consume_byte(); // consume the `[`.
-      std::get<CTX_VEC>(*formatted_literal.context)
-          .push_back(Token{TokenType::Literal, substr, get_local_origin()});
       substr = "";
       // lex escaped expression.
       while (m_current != ']') {
 
         std::optional<Token> inner_token;
         skip_whitespace_comments();
-        // note: the parser only supports escaped identifiers
+        // note: the parser only supports escaped identifiers.
         if ((inner_token = match_modify())) {
         } else if ((inner_token = match_arrow())) {
         } else if ((inner_token = match_separator())) {
@@ -174,9 +161,9 @@ std::optional<Token> Lexer::match_literal() {
         }
 
         if (!inner_token)
-          ErrorHandler::push_error_throw(get_local_origin(), L_INVALID_LITERAL);
+          ErrorHandler::halt(EInvalidLiteral{{m_index, m_index - origin}});
 
-        std::get<CTX_VEC>(*formatted_literal.context).push_back(*inner_token);
+        internal_stream.push_back(*inner_token);
       }
       consume_byte(); // consume the `]`
       continue;
@@ -186,10 +173,13 @@ std::optional<Token> Lexer::match_literal() {
     substr += m_current;
     consume_byte();
   }
+  internal_stream.push_back(Token{TokenType::Literal, substr, {m_index - substr.size(), substr.size()}});
   consume_byte(); // consume the `"`
-  std::get<CTX_VEC>(*formatted_literal.context)
-      .push_back(Token{TokenType::Literal, substr, get_local_origin()});
-  return formatted_literal;
+  return Token {
+    TokenType::FormattedLiteral,
+    internal_stream,
+    {origin, m_index - origin},
+  };
 }
 
 // match identifiers
@@ -203,11 +193,11 @@ std::optional<Token> Lexer::match_identifier() {
   }
 
   if (identifier == "as")
-    return Token{TokenType::IterateAs, std::nullopt, get_local_origin()};
+    return Token{TokenType::IterateAs, std::nullopt, {m_index - 2, 2}};
   else if (identifier == "true")
-    return Token{TokenType::True, std::nullopt, get_local_origin()};
+    return Token{TokenType::True, std::nullopt, {m_index - 4, 4}};
   else if (identifier == "false")
-    return Token{TokenType::False, std::nullopt, get_local_origin()};
+    return Token{TokenType::False, std::nullopt, {m_index - 5, 5}};
   else
-    return Token{TokenType::Identifier, identifier, get_local_origin()};
+    return Token{TokenType::Identifier, identifier, {m_index - identifier.size(), identifier.size()}};
 }

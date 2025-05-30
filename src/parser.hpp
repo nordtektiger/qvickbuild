@@ -1,5 +1,6 @@
 #ifndef PARSER_H
 #define PARSER_H
+
 #include "lexer.hpp"
 #include <memory>
 #include <string>
@@ -18,69 +19,83 @@ using ASTObject =
 // Logic: Expressions
 struct Identifier {
   std::string content;
-  Origin origin;
-
+  StreamReference reference;
   bool operator==(Identifier const &other) const;
+  // Identifier() = delete;
 };
 struct Literal {
   std::string content;
-  Origin origin;
-
+  StreamReference reference;
   bool operator==(Literal const &other) const;
+  // Literal() = delete;
 };
 struct FormattedLiteral {
   std::vector<ASTObject> contents;
-  Origin origin;
-
+  StreamReference reference;
   bool operator==(FormattedLiteral const &other) const;
+  // FormattedLiteral() = delete;
 };
 struct Boolean {
   bool content;
-  Origin origin;
-
+  StreamReference reference;
   bool operator==(Boolean const &other) const;
+  // Boolean() = delete;
 };
 struct List {
   std::vector<ASTObject> contents;
-  Origin origin;
-
+  StreamReference reference;
   bool operator==(List const &other) const;
+  // List() = delete;
 };
 struct Replace {
   std::shared_ptr<ASTObject> identifier;
   std::shared_ptr<ASTObject> original;
   std::shared_ptr<ASTObject> replacement;
-  Origin origin;
-
+  StreamReference reference;
   bool operator==(Replace const &other) const;
+  // Replace() = delete;
+};
+
+// visitor that simply returns the origin of an AST object.
+struct ASTVisitReference {
+  StreamReference operator()(Identifier const &identifier) {
+    return identifier.reference;
+  }
+  StreamReference operator()(Literal const &literal) {
+    return literal.reference;
+  }
+  StreamReference operator()(FormattedLiteral const &formatted_literal) {
+    return formatted_literal.reference;
+  }
+  StreamReference operator()(List const &list) { return list.reference; }
+  StreamReference operator()(Boolean const &boolean) {
+    return boolean.reference;
+  }
+  StreamReference operator()(Replace const &replace) {
+    return replace.reference;
+  }
 };
 
 // Config: Fields, tasks, AST
 struct Field {
   Identifier identifier;
   ASTObject expression;
-  Origin origin;
-
-  auto operator==(Field const &other) const {
-    return this->identifier == other.identifier &&
-           this->expression == other.expression;
-  }
+  StreamReference reference;
+  bool operator==(Field const &other) const;
+  // Field() = delete;
 };
 struct Task {
   ASTObject identifier;
   Identifier iterator;
   std::vector<Field> fields;
-  Origin origin;
-
-  auto operator==(Task const &other) const {
-    return this->identifier == other.identifier &&
-           this->iterator == other.iterator && this->fields == other.fields;
-  }
+  StreamReference reference;
+  bool operator==(Task const &other) const;
+  // Task() = delete;
 };
 struct AST {
   std::vector<Field> fields;
   std::vector<Task> tasks;
-  // delete the copy constructor to emphasize performance.
+  // make the copy constructor explicit to emphasize performance.
   explicit AST(AST const &) = default;
   AST() = default;
 };
@@ -92,15 +107,15 @@ private:
   AST m_ast;
 
   size_t m_index;
-  Token m_previous;
-  Token m_current;
-  Token m_next;
+  std::optional<Token> m_current;
+  std::optional<Token> m_next;
 
-  Token consume_token();
-  Token consume_token(int n);
+  std::optional<Token> consume_token();
+  std::optional<Token> consume_token(int n);
   std::optional<Token> consume_if(TokenType token_type);
   bool check_current(TokenType token_type);
   bool check_next(TokenType token_type);
+
   std::optional<ASTObject> parse_ast_object();
   std::optional<ASTObject> parse_list();
   std::optional<ASTObject> parse_replace();
