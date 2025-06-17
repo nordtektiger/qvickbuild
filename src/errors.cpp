@@ -1,3 +1,4 @@
+#include "tracking.hpp"
 #include "errors.hpp"
 #include "format.hpp"
 #include <algorithm>
@@ -137,9 +138,9 @@ std::string ErrorRenderer::get_rendered_view(ReferenceView reference_view,
   size_t right_ref_position = line_prefix.size() + 1;
   std::string left_pad(left_ref_position, ' ');
   std::string underline(right_ref_position, ' ');
-  return std::format("{} | {}{}{}{}{}{}\n{}|{}{}{}⤷ {}{}", line_num,
-                     line_prefix, UNDERLINE, line_ref, RESET, line_suffix,
-                     RESET, left_pad, ITALIC, BOLD, underline, msg, RESET);
+  return std::format("{} | {}{}{}{}{}{}\n{}|{}{}⤷ {}{}", line_num, line_prefix,
+                     UNDERLINE, line_ref, RESET, line_suffix, RESET, left_pad,
+                     BOLD, underline, msg, RESET);
 }
 
 std::string ErrorRenderer::prefix_rendered_view(std::string view,
@@ -349,7 +350,7 @@ EInvalidLiteral::EInvalidLiteral(StreamReference reference) {
 std::string EInvalidLiteral::render_error(std::vector<unsigned char> config) {
   ReferenceView ref_view = ErrorRenderer::get_reference_view(config, reference);
   std::string rendered_view =
-      ErrorRenderer::get_rendered_view(ref_view, "literal defined here");
+      ErrorRenderer::get_rendered_view(ref_view, "invalid symbol here");
   return std::format(
       "{}{}error:{}{} invalid literal encountered on line {}.\n{}{}", RED, BOLD,
       RESET, BOLD, ref_view.line_num, rendered_view, RESET);
@@ -366,11 +367,206 @@ std::string EInvalidGrammar::render_error(std::vector<unsigned char> config) {
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(ref_view, "syntax encountered here");
   return std::format(
-      "{}{}error:{}{} invalid language syntax encountered on line {}.\n{}{}", RED, BOLD,
-      RESET, BOLD, ref_view.line_num, rendered_view, RESET);
+      "{}{}error:{}{} invalid language syntax encountered on line {}.\n{}{}",
+      RED, BOLD, RESET, BOLD, ref_view.line_num, RESET, rendered_view);
 }
 
 char const *EInvalidGrammar::get_exception_msg() { return "Invalid grammar"; }
+
+ENoValue::ENoValue(Identifier identifier) { this->identifier = identifier; }
+
+std::string ENoValue::render_error(std::vector<unsigned char> config) {
+  ReferenceView decl_view =
+      ErrorRenderer::get_reference_view(config, identifier.reference);
+  std::string rendered_view =
+      ErrorRenderer::get_rendered_view(decl_view, "variable declared here");
+  return std::format("{}{}error:{}{} invalid value for variable '{}' declared "
+                     "on line {}.\n{}{}",
+                     RED, BOLD, RESET, BOLD, identifier.content,
+                     decl_view.line_num, RESET, rendered_view);
+}
+
+char const *ENoValue::get_exception_msg() { return "No valid value"; }
+
+ENoLinestop::ENoLinestop(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string ENoLinestop::render_error(std::vector<unsigned char> config) {
+  ReferenceView line_view =
+      ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(
+      line_view, "semicolon expected after this expression");
+  return std::format("{}{}error:{}{} missing semicolon or invalid expression "
+                     "on line {}.\n{}{}",
+                     RED, BOLD, RESET, BOLD, line_view.line_num, RESET,
+                     rendered_view);
+}
+
+char const *ENoLinestop::get_exception_msg() { return "No linestop"; }
+
+ENoIterator::ENoIterator(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string ENoIterator::render_error(std::vector<unsigned char> config) {
+  ReferenceView task_view =
+      ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(
+      task_view, "explicit iterator required because of this");
+  return std::format("{}{}error:{}{} task defined on line {} doesn't have a "
+                     "valid explicit iterator.\n{}{}",
+                     RED, BOLD, RESET, BOLD, task_view.line_num, RESET,
+                     rendered_view);
+}
+
+char const *ENoIterator::get_exception_msg() { return "No task iterator"; }
+
+ENoTaskOpen::ENoTaskOpen(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string ENoTaskOpen::render_error(std::vector<unsigned char> config) {
+  ReferenceView task_view =
+      ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view =
+      ErrorRenderer::get_rendered_view(task_view, "task defined here");
+  return std::format("{}{}error:{}{} task defined on line {} doesn't have an "
+                     "opening curly bracket.\n{}{}",
+                     RED, BOLD, RESET, BOLD, task_view.line_num, RESET,
+                     rendered_view);
+}
+
+char const *ENoTaskOpen::get_exception_msg() {
+  return "No task open curly bracket";
+}
+
+ENoTaskClose::ENoTaskClose(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string ENoTaskClose::render_error(std::vector<unsigned char> config) {
+  ReferenceView task_view =
+      ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view =
+      ErrorRenderer::get_rendered_view(task_view, "task defined here");
+  return std::format("{}{}error:{}{} task defined on line {} doesn't have a "
+                     "closing curly bracket.\n{}{}",
+                     RED, BOLD, RESET, BOLD, task_view.line_num, RESET,
+                     rendered_view);
+}
+
+char const *ENoTaskClose::get_exception_msg() {
+  return "No task close curly bracket";
+}
+
+EInvalidListEnd::EInvalidListEnd(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string EInvalidListEnd::render_error(std::vector<unsigned char> config) {
+  ReferenceView separator_view =
+      ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(
+      separator_view, "item expected after this separator");
+  return std::format("{}{}error:{}{} list defined on line {} contains an "
+                     "invalid ending.\n{}{}",
+                     RED, BOLD, RESET, BOLD, separator_view.line_num, RESET,
+                     rendered_view);
+}
+
+char const *EInvalidListEnd::get_exception_msg() { return "Invalid list end"; }
+
+ENoReplacementIdentifier::ENoReplacementIdentifier(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string ENoReplacementIdentifier::render_error(std::vector<unsigned char> config) {
+  ReferenceView modify_view = ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(modify_view, "expression expected before this colon");
+  return std::format("{}{}error:{}{} replacement operator on line {} does not contain a valid input expression.\n{}{}",
+                     RED, BOLD, RESET, BOLD, modify_view.line_num, RESET, rendered_view);
+}
+
+char const *ENoReplacementIdentifier::get_exception_msg() { return "No replacement identifier"; }
+
+ENoReplacementOriginal::ENoReplacementOriginal(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string ENoReplacementOriginal::render_error(std::vector<unsigned char> config) {
+  ReferenceView modify_view = ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(modify_view, "expression expected after this colon");
+  return std::format("{}{}error:{}{} replacement operator on line {} does not contain a valid matching expression.\n{}{}",
+                     RED, BOLD, RESET, BOLD, modify_view.line_num, RESET, rendered_view);
+}
+
+char const *ENoReplacementOriginal::get_exception_msg() { return "No replacement original"; }
+
+ENoReplacementArrow::ENoReplacementArrow(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string ENoReplacementArrow::render_error(std::vector<unsigned char> config) {
+  ReferenceView original_view = ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(original_view, "arrow expected after this expression");
+  return std::format("{}{}error:{}{} expected an arrow in the replacement operator on line {}.\n{}{}",
+                     RED, BOLD, RESET, BOLD, original_view.line_num, RESET, rendered_view);
+}
+
+char const *ENoReplacementArrow::get_exception_msg() { return "No replacement arrow"; }
+
+ENoReplacementReplacement::ENoReplacementReplacement(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string ENoReplacementReplacement::render_error(std::vector<unsigned char> config) {
+  ReferenceView arrow_view = ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(arrow_view, "expression expected after this arrow");
+  return std::format("{}{}error:{}{} replacement operator on line {} does not contain a valid output expression.\n{}{}",
+                     RED, BOLD, RESET, BOLD, arrow_view.line_num, RESET, rendered_view);
+}
+
+char const *ENoReplacementReplacement::get_exception_msg() { return "No replacement replacement"; }
+
+EInvalidEscapedExpression::EInvalidEscapedExpression(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string EInvalidEscapedExpression::render_error(std::vector<unsigned char> config) {
+  ReferenceView expr_view = ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(expr_view, "invalid expression here");
+  return std::format("{}{}error:{}{} string defined on line {} contains an invalid expression.\n{}{}",
+                     RED, BOLD, RESET, BOLD, expr_view.line_num, RESET, rendered_view);
+}
+
+char const *EInvalidEscapedExpression::get_exception_msg() { return "Invalid escaped expression"; }
+
+ENoExpressionClose::ENoExpressionClose(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string ENoExpressionClose::render_error(std::vector<unsigned char> config) {
+  ReferenceView expr_view = ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(expr_view, "expected closing bracket after this");
+  return std::format("{}{}error:{}{} expected a closing bracket after expression on line {}.\n{}{}",
+                     RED, BOLD, RESET, BOLD, expr_view.line_num, RESET, rendered_view);
+}
+
+char const *ENoExpressionClose::get_exception_msg() { return "No expression close"; }
+
+EEmptyExpression::EEmptyExpression(StreamReference reference) {
+  this->reference = reference;
+}
+
+std::string EEmptyExpression::render_error(std::vector<unsigned char> config) {
+  ReferenceView expr_view = ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(expr_view, "expected expression after this bracket");
+  return std::format("{}{}error:{}{} expected an expression after an opening bracket on line {}.\n{}{}",
+                     RED, BOLD, RESET, BOLD, expr_view.line_num, RESET, rendered_view);
+}
+
+char const *EEmptyExpression::get_exception_msg() { return "Empty expression"; }
 
 std::unordered_map<size_t, std::shared_ptr<BuildError>>
     ErrorHandler::error_state = {};
@@ -394,6 +590,20 @@ template <typename B> void ErrorHandler::halt [[noreturn]] (B build_error) {
 template void ErrorHandler::halt<ENoMatchingIdentifier>(ENoMatchingIdentifier);
 template void ErrorHandler::halt<EInvalidSymbol>(EInvalidSymbol);
 template void ErrorHandler::halt<EInvalidLiteral>(EInvalidLiteral);
+template void ErrorHandler::halt<EInvalidGrammar>(EInvalidGrammar);
+template void ErrorHandler::halt<ENoValue>(ENoValue);
+template void ErrorHandler::halt<ENoLinestop>(ENoLinestop);
+template void ErrorHandler::halt<ENoIterator>(ENoIterator);
+template void ErrorHandler::halt<ENoTaskOpen>(ENoTaskOpen);
+template void ErrorHandler::halt<ENoTaskClose>(ENoTaskClose);
+template void ErrorHandler::halt<EInvalidListEnd>(EInvalidListEnd);
+template void ErrorHandler::halt<ENoReplacementIdentifier>(ENoReplacementIdentifier);
+template void ErrorHandler::halt<ENoReplacementOriginal>(ENoReplacementOriginal);
+template void ErrorHandler::halt<ENoReplacementArrow>(ENoReplacementArrow);
+template void ErrorHandler::halt<ENoReplacementReplacement>(ENoReplacementReplacement);
+template void ErrorHandler::halt<EInvalidEscapedExpression>(EInvalidEscapedExpression);
+template void ErrorHandler::halt<ENoExpressionClose>(ENoExpressionClose);
+template void ErrorHandler::halt<EEmptyExpression>(EEmptyExpression);
 template FrameGuard::FrameGuard(IdentifierEvaluateFrame);
 template FrameGuard::FrameGuard(EntryBuildFrame);
 template FrameGuard::FrameGuard(DependencyBuildFrame);

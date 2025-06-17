@@ -1,3 +1,4 @@
+#include "tracking.hpp"
 #include "parser.hpp"
 #include "errors.hpp"
 #include "lexer.hpp"
@@ -98,7 +99,7 @@ AST Parser::parse_tokens() {
       ast.tasks.push_back(*task);
       continue;
     }
-    // ErrorHandler::halt(EInvalidGrammar{m_current->reference});
+    ErrorHandler::halt(EInvalidGrammar{m_current->reference});
   }
   return AST(ast);
 }
@@ -115,13 +116,16 @@ std::optional<Field> Parser::parse_field() {
   consume_token(); // consume the `=`.
 
   std::optional<ASTObject> ast_object = parse_ast_object();
-  // if (!ast_object)
-  //   ErrorHandler::halt(ENoValue{identifier});
+  if (!ast_object)
+    ErrorHandler::halt(ENoValue{identifier});
 
   ASTObject expression = *ast_object;
-  if (!consume_if(TokenType::LineStop)) {}
-    // ErrorHandler::halt(
-    //     ENoLinestop{m_current->reference}); // todo: not guaranteed?
+  if (!consume_if(TokenType::LineStop)) {
+    if (m_index >= 1)
+      ErrorHandler::halt(ENoLinestop{m_token_stream[m_index - 1].reference});
+    else
+      ErrorHandler::halt(ENoLinestop{m_token_stream[0].reference});
+  }
   return Field{identifier, expression, reference};
 }
 
@@ -133,24 +137,24 @@ std::optional<Task> Parser::parse_task() {
   StreamReference reference = std::visit(ASTVisitReference{}, *identifier);
   Identifier iterator = Identifier{"__task__", reference};
   // check if an explicit iterator name has been declared.
-  if (consume_if(TokenType::IterateAs)) {
+  std::optional<Token> explicit_iterate = consume_if(TokenType::IterateAs);
+  if (explicit_iterate) {
     std::optional<Token> iterator_token = consume_if(TokenType::Identifier);
-    //   ErrorHandler::push_error_throw(origin, P_TASK_NO_ITERATOR);
+    if (!iterator_token)
+      ErrorHandler::halt(ENoIterator{explicit_iterate->reference});
     iterator = Identifier{std::get<CTX_STR>(*iterator_token->context),
                           iterator_token->reference};
   }
-  if (!consume_if(TokenType::TaskOpen)) {
-  }
-  //   ErrorHandler::push_error_throw(origin, P_TASK_NO_OPEN);
+  if (!consume_if(TokenType::TaskOpen))
+    ErrorHandler::halt(ENoTaskOpen{reference});
 
   std::optional<Field> field;
   std::vector<Field> fields;
   while ((field = parse_field()))
     fields.push_back(*field);
 
-  if (!consume_if(TokenType::TaskClose)) {
-  }
-  //   ErrorHandler::push_error_throw(origin, P_TASK_NO_CLOSE);
+  if (!consume_if(TokenType::TaskClose))
+    ErrorHandler::halt(ENoTaskClose{reference});
 
   return Task{*identifier, iterator, fields, reference};
 }
@@ -172,15 +176,14 @@ std::optional<ASTObject> Parser::parse_list() {
   std::optional<ASTObject> ast_obj;
   ast_obj = parse_replace();
   std::vector<ASTObject> contents;
-  while (ast_obj && consume_if(TokenType::Separator)) {
+  std::optional<Token> token_separator;
+  while (ast_obj && (token_separator = consume_if(TokenType::Separator))) {
     contents.push_back(*ast_obj);
     ast_obj = parse_ast_object();
   }
 
-  if (!ast_obj && !contents.empty()) {
-  }
-  //   ErrorHandler::push_error_throw(
-  //       std::visit(ASTVisitOrigin{}, list.contents[0]), P_AST_INVALID_END);
+  if (!ast_obj && !contents.empty())
+    ErrorHandler::halt(EInvalidListEnd{token_separator->reference});
   else if (!ast_obj && contents.empty())
     return std::nullopt;
 
@@ -196,24 +199,33 @@ std::optional<ASTObject> Parser::parse_list() {
 // recursive descent parser, see grammar.
 std::optional<ASTObject> Parser::parse_replace() {
   std::optional<ASTObject> identifier = parse_primary();
-  if (!consume_if(TokenType::Modify))
+  std::optional<Token> token_modify;
+  if (!(token_modify = consume_if(TokenType::Modify)))
     return identifier; // not a replace.
-  StreamReference reference = std::visit(ASTVisitReference{}, *identifier);
+
+  if (!identifier)
+    ErrorHandler::halt(ENoReplacementIdentifier{token_modify->reference});
+  StreamReference reference_initial = std::visit(ASTVisitReference{}, *identifier);
 
   std::optional<ASTObject> original = parse_primary();
-  if (!consume_if(TokenType::Arrow)) {
-  }
-  //   ErrorHandler::push_error_throw(origin, P_AST_NO_ARROW);
+  if (!original)
+    ErrorHandler::halt(ENoReplacementOriginal{token_modify->reference});
+
+  std::optional<Token> token_arrow;
+  if (!(token_arrow = consume_if(TokenType::Arrow)))
+    ErrorHandler::halt(
+        ENoReplacementArrow{std::visit(ASTVisitReference{}, *original)});
 
   std::optional<ASTObject> replacement = parse_primary();
-  // if (!identifier || !original || !replacement)
-  //   ErrorHandler::push_error_throw(origin, P_AST_INVALID_REPLACE);
+  if (!replacement)
+    ErrorHandler::halt(ENoReplacementReplacement{token_arrow->reference});
+  StreamReference reference_final = std::visit(ASTVisitReference{}, *replacement);
 
   return Replace{
       std::make_shared<ASTObject>(*identifier),
       std::make_shared<ASTObject>(*original),
       std::make_shared<ASTObject>(*replacement),
-      reference,
+      reference_initial, // todo: calculate this appropriately
   };
 }
 
@@ -244,23 +256,19 @@ std::optional<ASTObject> Parser::parse_primary() {
             Identifier{std::get<CTX_STR>(*internal_token.context),
                        internal_token.reference});
       else {
+        ErrorHandler::halt(EInvalidEscapedExpression{internal_token.reference});
       }
-      // ErrorHandler::push_error_throw(internal_token.origin,
-      //                                P_AST_INVALID_ESCAPE);
     }
     return FormattedLiteral{contents, reference};
   } else if ((token = consume_if(TokenType::ExpressionOpen))) {
     std::optional<ASTObject> ast_object = parse_ast_object();
+    if (!ast_object)
+      ErrorHandler::halt(EEmptyExpression{token->reference});
     if (!consume_if(TokenType::ExpressionClose)) {
+      StreamReference reference = std::visit(ASTVisitReference{}, *ast_object);
+      ErrorHandler::halt(ENoExpressionClose{reference});
     }
-    //   ErrorHandler::push_error_throw(std::visit(ASTVisitOrigin{},
-    //   *ast_object),
-    //                                  P_AST_NO_CLOSE);
-    // if (!ast_object)
-    //   ErrorHandler::push_error(token->origin, P_EMPTY_EXPRESSION);
-
     return ast_object;
   }
-
   return std::nullopt;
 }

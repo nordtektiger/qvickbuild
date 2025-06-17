@@ -17,6 +17,7 @@ install_dir = "/usr/bin";
 
 # main tasks.
 "quickbuild_debug" {
+  # depends = incorrect;
   depends = "setup", "build_objs_debug";
   run = "[compiler] [flags_debug] [objects] -o [binary]";
 }
@@ -41,6 +42,10 @@ install_dir = "/usr/bin";
   run = "mkdir -p obj",
         "mkdir -p bin";
 }
+
+# "test" {
+#   run = "echo [objects_debug, binary, install_dir]";
+# }
 
 # object files.
 objects_debug as obj {

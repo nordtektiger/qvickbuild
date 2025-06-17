@@ -1,6 +1,7 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+#include "tracking.hpp"
 #include "lexer.hpp"
 #include <memory>
 #include <string>

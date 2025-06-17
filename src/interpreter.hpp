@@ -6,6 +6,7 @@ struct IBool;
 struct IList;
 struct IValue;
 
+#include "tracking.hpp"
 #include "driver.hpp"
 #include "parser.hpp"
 #include <mutex>

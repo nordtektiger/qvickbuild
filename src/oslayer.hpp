@@ -1,6 +1,7 @@
 #ifndef OSLAYER_H
 #define OSLAYER_H
 
+#include "tracking.hpp"
 #include "errors.hpp"
 #include "lexer.hpp"
 #include <atomic>

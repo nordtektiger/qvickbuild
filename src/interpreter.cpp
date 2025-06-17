@@ -1,3 +1,4 @@
+#include "tracking.hpp"
 #include "interpreter.hpp"
 #include "errors.hpp"
 #include "filesystem"
@@ -507,7 +508,7 @@ void Interpreter::t_run_task(Task task, std::string task_iteration,
       *error = true;
   } catch (...) {
     // it's ok to ignore the exception, since the task failure will throw an
-    // I_DEPENDENCY_FAILED regardless, which will unwind the combined error
+    // EDependencyFailed regardless, which will unwind the combined error
     // stack.
     *error = true;
   }

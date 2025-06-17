@@ -1,3 +1,4 @@
+#include "tracking.hpp"
 #include "lexer.hpp"
 #include "errors.hpp"
 #include <functional>
@@ -21,8 +22,8 @@ unsigned char Lexer::consume_byte() { return consume_byte(1); }
 
 unsigned char Lexer::consume_byte(int n) {
   m_index += n;
-    m_current = (m_input.size() >= m_index + 1) ? m_input[m_index] : '\0';
-    m_next = (m_input.size() >= m_index + 2) ? m_input[m_index + 1] : '\0';
+  m_current = (m_input.size() >= m_index + 1) ? m_input[m_index] : '\0';
+  m_next = (m_input.size() >= m_index + 2) ? m_input[m_index + 1] : '\0';
   return m_current;
 }
 
@@ -41,7 +42,8 @@ std::vector<Token> Lexer::get_token_stream() {
     if (m_current == '\0')
       break;
     if (!match) {
-      ErrorHandler::halt(EInvalidSymbol{{m_index, 1}, std::to_string(m_current)});
+      ErrorHandler::halt(
+          EInvalidSymbol{{m_index, 1}, std::to_string(m_current)});
     }
   }
   return m_token_stream;
@@ -145,7 +147,10 @@ std::optional<Token> Lexer::match_literal() {
   std::string substr;
   while (m_current != '\"') {
     if (m_current == '[') {
-      internal_stream.push_back(Token{TokenType::Literal, substr, {m_index - substr.size(), substr.size()}});
+      internal_stream.push_back(
+          Token{TokenType::Literal,
+                substr,
+                {m_index - substr.size(), substr.size()}});
       consume_byte(); // consume the `[`.
       substr = "";
       // lex escaped expression.
@@ -161,7 +166,7 @@ std::optional<Token> Lexer::match_literal() {
         }
 
         if (!inner_token)
-          ErrorHandler::halt(EInvalidLiteral{{m_index, m_index - origin}});
+          ErrorHandler::halt(EInvalidLiteral{{m_index, 1}});
 
         internal_stream.push_back(*inner_token);
       }
@@ -173,12 +178,13 @@ std::optional<Token> Lexer::match_literal() {
     substr += m_current;
     consume_byte();
   }
-  internal_stream.push_back(Token{TokenType::Literal, substr, {m_index - substr.size(), substr.size()}});
+  internal_stream.push_back(Token{
+      TokenType::Literal, substr, {m_index - substr.size(), substr.size()}});
   consume_byte(); // consume the `"`
-  return Token {
-    TokenType::FormattedLiteral,
-    internal_stream,
-    {origin, m_index - origin},
+  return Token{
+      TokenType::FormattedLiteral,
+      internal_stream,
+      {origin, m_index - origin},
   };
 }
 
@@ -199,5 +205,7 @@ std::optional<Token> Lexer::match_identifier() {
   else if (identifier == "false")
     return Token{TokenType::False, std::nullopt, {m_index - 5, 5}};
   else
-    return Token{TokenType::Identifier, identifier, {m_index - identifier.size(), identifier.size()}};
+    return Token{TokenType::Identifier,
+                 identifier,
+                 {m_index - identifier.size(), identifier.size()}};
 }

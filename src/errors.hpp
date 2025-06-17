@@ -4,6 +4,7 @@
 struct ReferenceView;
 class BuildError;
 
+#include "tracking.hpp"
 #include "interpreter.hpp"
 #include "lexer.hpp"
 #include "parser.hpp"
@@ -13,6 +14,7 @@ class BuildError;
 #include <optional>
 #include <string>
 #include <vector>
+
 
 class ErrorRenderer {
 public:
@@ -78,7 +80,7 @@ public:
 // class ENoFieldNorDefault : public BuildError {
 // private:
 //   std::string field_name;
-// 
+//
 // public:
 //   std::string render_error(std::vector<unsigned char> config) override;
 //   char const *get_exception_msg() override;
@@ -215,6 +217,116 @@ public:
   ENoIterator(StreamReference);
 };
 
+class ENoTaskOpen : public BuildError {
+private:
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  ENoTaskOpen() = delete;
+  ENoTaskOpen(StreamReference);
+};
+
+class ENoTaskClose : public BuildError {
+private:
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  ENoTaskClose() = delete;
+  ENoTaskClose(StreamReference);
+};
+
+// todo: revisit this.
+class EInvalidListEnd : public BuildError {
+private:
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  EInvalidListEnd() = delete;
+  EInvalidListEnd(StreamReference);
+};
+
+class ENoReplacementIdentifier : public BuildError {
+private:
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  ENoReplacementIdentifier() = delete;
+  ENoReplacementIdentifier(StreamReference);
+};
+
+class ENoReplacementOriginal : public BuildError {
+private:
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  ENoReplacementOriginal() = delete;
+  ENoReplacementOriginal(StreamReference);
+};
+
+class ENoReplacementArrow : public BuildError {
+private:
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  ENoReplacementArrow() = delete;
+  ENoReplacementArrow(StreamReference);
+};
+
+class ENoReplacementReplacement : public BuildError {
+private:
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  ENoReplacementReplacement() = delete;
+  ENoReplacementReplacement(StreamReference);
+};
+
+class EInvalidEscapedExpression : public BuildError {
+private:
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  EInvalidEscapedExpression() = delete;
+  EInvalidEscapedExpression(StreamReference);
+};
+
+class ENoExpressionClose : public BuildError {
+private:
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  ENoExpressionClose() = delete;
+  ENoExpressionClose(StreamReference);
+};
+
+class EEmptyExpression : public BuildError {
+private:
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  EEmptyExpression() = delete;
+  EEmptyExpression(StreamReference);
+};
 
 // api-facing error handler.
 class ErrorHandler {

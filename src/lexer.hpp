@@ -30,6 +30,7 @@
 #define _LAMBDA_DECLARE_LIST(x) _LAMBDA_DECLARE(x),
 #define LAMBDA_DECLARE_ALL LEXING_RULES(_LAMBDA_DECLARE_LIST)
 
+#include "tracking.hpp"
 #include <functional>
 #include <optional>
 #include <string>
@@ -67,10 +68,6 @@ struct InputStreamPos {
 // struct InternalNode {};
 // using ObjectReference = std::string;
 // using Origin = std::variant<InputStreamPos, ObjectReference, InternalNode>;
-struct StreamReference {
-  size_t index;
-  size_t length;
-};
 
 struct Token;
 using TokenContext =

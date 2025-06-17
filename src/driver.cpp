@@ -49,10 +49,11 @@ void Driver::unwind_errors(std::vector<unsigned char> config) {
         build_error->render_error(config), std::format("{}│{} ", RED, RESET));
     std::string thread_prefix =
         verbose_threads
-            ? std::format("{}{}«thread {:x}»{} ", RED, BOLD, thread_hash, RESET) :
-            "";
-    LOG_STANDARD(
-        std::format("{}{}\n{}│{}", thread_prefix, rendered_error, RED, RESET));
+            ? std::format("{}{}«thread {:x}»{} ", RED, BOLD, thread_hash, RESET)
+            : "";
+    LOG_STANDARD(std::format("{}{}", thread_prefix, rendered_error));
+    if (!frames[thread_hash].empty())
+      LOG_STANDARD(RED << "│" << RESET);
     // display context stack.
     for (std::unique_ptr<Frame> const &frame : frames[thread_hash]) {
       LOG_STANDARD(std::format("{}│{}  {}note:{} while {}", RED, RESET, GREY,
