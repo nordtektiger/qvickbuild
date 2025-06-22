@@ -1,6 +1,6 @@
 # Quickbuild
 > [!WARNING]
-> Quickbuild is currently in early beta and is undergoing major changes. Expect frequent crashes, segmentation faults, and undefined behaviour. Please see [the roadmap](https://github.com/nordtechtiger/quickbuild/issues/1) for more information.
+> Quickbuild is currently in early beta and is undergoing major changes. Expect frequent crashes, segmentation faults, and undefined behaviour. Please see the roadmap for more information.
 
 ## "What is this?"
 
@@ -26,7 +26,7 @@ Quickbuild is available from the AUR as `quickbuild-git`. If you aren't running 
 
 Normal installation using Make:
 ```
-$ git clone https://github.com/nordtechtiger/quickbuild
+$ git clone https://gitlab.com/nordtektiger/quickbuild
 $ cd quickbuild
 $ make
 # make install
@@ -34,7 +34,7 @@ $ make
 
 Alternatively, you can use a previous version of Quickbuild to build a newer one from source:
 ```
-$ git clone https://github.com/nordtechtiger/quickbuild
+$ git clone https://gitlab.com/nordtektiger/quickbuild
 $ cd quickbuild
 $ quickbuild
 # quickbuild install
