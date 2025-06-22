@@ -1,0 +1,7 @@
+build-job:
+  script:
+    - make clean
+    - make
+  artifacts:
+    paths:
+      - bin/quickbuild
