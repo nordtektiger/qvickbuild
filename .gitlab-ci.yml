@@ -1,4 +1,5 @@
 build-job:
+  image: gcc
   script:
     - make clean
     - make
