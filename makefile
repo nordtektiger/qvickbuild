@@ -1,7 +1,7 @@
 # General compiler arguments
 CXX = g++
 # CXXFLAGS = -g -fstandalone-debug -O0 -Wall -Wextra -pedantic-errors -std=c++20
-CXXFLAGS = -g -O3 -Wall -Wextra -pthread -pedantic-errors -std=c++2c
+CXXFLAGS = -g -O3 -Wall -Wextra -pthread -pedantic-errors -std=c++20
 
 # Files to compile
 sources := $(wildcard src/*.cpp)
@@ -35,5 +35,5 @@ run: quickbuild
 clean:
 	rm --force $(objects)
 	rm --force $(binary)
-	rm --force bin
-	rm --force obj
+	rm --force --recursive bin
+	rm --force --recursive obj
