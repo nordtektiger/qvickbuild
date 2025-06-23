@@ -22,7 +22,7 @@ private:
   bool parallel;
 
   std::vector<Command> queue = {};
-  std::vector<StreamReference> non_zero_processes;
+  std::vector<Command> non_zero_commands;
   std::mutex error_lock;
 
   void _execute_command(Command command);
@@ -34,7 +34,7 @@ public:
   OSLayer(bool parallel, bool silent);
   void queue_command(Command command);
   void execute_queue();
-  std::vector<StreamReference> get_non_zero_processes();
+  std::vector<Command> get_non_zero_commands();
 
   static std::optional<size_t> get_file_timestamp(std::string path);
 };

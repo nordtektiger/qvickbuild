@@ -4,17 +4,17 @@
 struct ReferenceView;
 class BuildError;
 
-#include "tracking.hpp"
 #include "interpreter.hpp"
+#include "oslayer.hpp"
 #include "lexer.hpp"
 #include "parser.hpp"
+#include "tracking.hpp"
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
-
 
 class ErrorRenderer {
 public:
@@ -25,7 +25,7 @@ public:
                                        std::string msg);
   static std::string prefix_rendered_view(std::string view, std::string prefix);
   static std::string
-      stringify_type(std::variant<ASTObject, IString, IBool, IList>);
+      stringify_type(std::variant<ASTObject, IValue, IString, IBool, IList>);
 };
 
 struct ReferenceView {
@@ -55,26 +55,37 @@ public:
 
 class EListTypeMismatch : public BuildError {
 private:
-  List list;
-  ASTObject faulty_ast_object;
+  IList list;
+  IValue faulty_ivalue;
 
 public:
   std::string render_error(std::vector<unsigned char> config) override;
   char const *get_exception_msg() override;
   EListTypeMismatch() = delete;
-  EListTypeMismatch(List, ASTObject);
+  EListTypeMismatch(IList, IValue);
 };
 
 class EReplaceTypeMismatch : public BuildError {
 private:
   Replace replace;
-  ASTObject faulty_ast_object;
+  IValue faulty_ivalue;
 
 public:
   std::string render_error(std::vector<unsigned char> config) override;
   char const *get_exception_msg() override;
   EReplaceTypeMismatch() = delete;
-  EReplaceTypeMismatch(Replace, ASTObject);
+  EReplaceTypeMismatch(Replace, IValue);
+};
+
+class EReplaceChunksLength : public BuildError {
+private:
+  IValue replacement;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  EReplaceChunksLength() = delete;
+  EReplaceChunksLength(IValue);
 };
 
 // class ENoFieldNorDefault : public BuildError {
@@ -88,26 +99,27 @@ public:
 //   ENoFieldNorDefault(std::string);
 // };
 
-// ** technically need to rework field fetching system for this.
-// class EVariableTypeMismatch : public BuildError {
-// private:
-//
-// public:
-//   std::string render_error(std::vector<unsigned char> config);
-//   char* get_exception_msg();
-//   EVariableTypeMismatch(ASTObject,
-// };
+class EVariableTypeMismatch : public BuildError {
+private:
+  IValue variable;
+  std::string expected_type;
+
+public:
+  std::string render_error(std::vector<unsigned char> config);
+  char const *get_exception_msg();
+  EVariableTypeMismatch(IValue, std::string);
+};
 
 class ENonZeroProcess : public BuildError {
 private:
+  std::string cmdline;
   StreamReference reference;
-  std::string command;
 
 public:
   std::string render_error(std::vector<unsigned char> config) override;
   char const *get_exception_msg() override;
   ENonZeroProcess() = delete;
-  ENonZeroProcess(StreamReference reference, std::string command);
+  ENonZeroProcess(std::string, StreamReference);
 };
 
 class ETaskNotFound : public BuildError {
@@ -136,6 +148,19 @@ public:
   char const *get_exception_msg() override;
   EAmbiguousTask() = delete;
   EAmbiguousTask(Task);
+};
+
+class EDependencyStatus : public BuildError {
+private:
+  Task task;
+  IString dependency_where;
+  std::string dependency_value;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  EDependencyStatus() = delete;
+  EDependencyStatus(Task, IString, std::string);
 };
 
 class EDependencyFailed : public BuildError {
@@ -338,6 +363,8 @@ private:
 
 public:
   template <typename B> static void halt [[noreturn]] (B build_error);
+  template <typename B> static void soft_report(B build_error);
+  static void trigger_report [[noreturn]] ();
   static std::unordered_map<size_t, std::shared_ptr<BuildError>> get_errors();
 };
 

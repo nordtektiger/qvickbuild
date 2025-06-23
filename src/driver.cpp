@@ -84,7 +84,7 @@ int Driver::run() {
     Interpreter interpreter(ast, m_setup);
     interpreter.build();
 
-  } catch (BuildException &e) {
+  } catch (BuildException &_) {
     unwind_errors(config);
     LOG_STANDARD("");
     LOG_STANDARD("➤ build " << RED << "failed" << RESET);

@@ -28,6 +28,10 @@ void OSLayer::execute_queue() {
     _execute_queue_sync();
 }
 
+std::vector<Command> OSLayer::get_non_zero_commands() {
+  return non_zero_commands;
+}
+
 void OSLayer::_execute_queue_parallel() {
   std::vector<std::thread> pool;
   for (Command const &command : queue) {
@@ -55,7 +59,7 @@ void OSLayer::_execute_command(Command command) {
 
   if (0 != code) {
     this->error_lock.lock();
-    non_zero_processes.push_back(command.reference);
+    non_zero_commands.push_back(command);
     this->error_lock.unlock();
   }
 }

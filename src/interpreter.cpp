@@ -1,9 +1,9 @@
-#include "tracking.hpp"
 #include "interpreter.hpp"
 #include "errors.hpp"
 #include "filesystem"
 #include "format.hpp"
 #include "oslayer.hpp"
+#include "tracking.hpp"
 #include <atomic>
 #include <cassert>
 #include <filesystem>
@@ -299,22 +299,15 @@ IValue ASTEvaluate::operator()(List const &list) {
         std::get<QBLIST_STR>(out.contents)
             .push_back(std::get<IString>(obj_result.value));
         immutable &= _obj_result.immutable;
-      } else {
-      }
-      // ErrorHandler::push_error_throw(
-      //     {out.reference, std::get<IString>(obj_result.value).toString()},
-      //     I_EVALUATE_LIST_TYPE_MISMATCH);
+      } else
+        ErrorHandler::halt(EListTypeMismatch{out, obj_result});
     } else if (std::holds_alternative<IBool>(obj_result.value)) {
       if (out.holds_ibool()) {
         std::get<QBLIST_BOOL>(out.contents)
             .push_back(std::get<IBool>(obj_result.value));
         immutable &= _obj_result.immutable;
-      } else {
-      }
-      // ErrorHandler::push_error_throw(
-      //     {out.reference,
-      //      std::get<IBool>(obj_result.value) ? "true" : "false"},
-      //     I_EVALUATE_LIST_TYPE_MISMATCH);
+      } else
+        ErrorHandler::halt(EListTypeMismatch{out, obj_result});
     } else if (std::holds_alternative<IList>(obj_result.value)) {
       IList obj_result_ilist = std::get<IList>(obj_result.value);
       if (obj_result_ilist.holds_istring() && out.holds_istring()) {
@@ -330,8 +323,7 @@ IValue ASTEvaluate::operator()(List const &list) {
                     std::get<QBLIST_BOOL>(obj_result_ilist.contents).end());
         immutable &= _obj_result.immutable;
       } else {
-        // ErrorHandler::push_error_throw(out.reference,
-        //                                I_EVALUATE_LIST_TYPE_MISMATCH);
+        ErrorHandler::halt(EListTypeMismatch{out, obj_result});
       }
     }
   }
@@ -358,12 +350,11 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
   immutable &= original.immutable;
   immutable &= replacement.immutable;
 
-  if (!std::holds_alternative<IString>(original.value) ||
-      !std::holds_alternative<IString>(replacement.value)) {
-  }
-  // ErrorHandler::push_error_throw(
-  //     std::visit(QBVisitStreamReference{}, original.value),
-  //     I_EVALUATE_REPLACE_TYPE_ERROR);
+  if (!std::holds_alternative<IString>(original.value))
+    ErrorHandler::halt(EReplaceTypeMismatch{replace, original});
+
+  if (!std::holds_alternative<IString>(replacement.value))
+    ErrorHandler::halt(EReplaceTypeMismatch{replace, replacement});
 
   IList input{{}, replace.reference};
   IList output{{}, replace.reference};
@@ -373,11 +364,8 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
   else if (std::holds_alternative<IString>(identifier.value))
     std::get<QBLIST_STR>(input.contents)
         .push_back(std::get<IString>(identifier.value));
-  else {
-  }
-  //   ErrorHandler::push_error_throw(
-  //       std::visit(QBVisitStreamReference{}, identifier.value),
-  //       I_EVALUATE_REPLACE_TYPE_ERROR);
+  else
+    ErrorHandler::halt(EReplaceTypeMismatch{replace, identifier});
 
   // split original and replacement into chunks.
   std::vector<std::string> original_chunked;
@@ -392,10 +380,8 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
   while (std::getline(replacement_ss, replacement_buf, '*'))
     replacement_chunked.push_back(replacement_buf);
 
-  if (original_chunked.size() < replacement_chunked.size()) {
-  }
-  //   ErrorHandler::push_error_throw(replace.reference,
-  //                                  I_REPLACE_CHUNKS_LENGTH_ERROR);
+  if (original_chunked.size() < replacement_chunked.size())
+    ErrorHandler::halt(EReplaceChunksLength{replacement});
 
   // actual string manipulation.
   for (IString const &istring : std::get<QBLIST_STR>(input.contents)) {
@@ -474,18 +460,16 @@ std::optional<Field> Interpreter::find_field(std::string identifier,
   return std::nullopt;
 }
 
-IValue
+// if there is no default and field does not exist, return std::nullopt.
+// it is up to the caller to handle a missing mandatory field.
+std::optional<IValue>
 Interpreter::evaluate_field_default(std::string identifier,
                                     EvaluationContext context,
                                     std::shared_ptr<EvaluationState> state,
                                     std::optional<IValue> default_value) {
   std::optional<Field> field = find_field(identifier, context.task_scope);
   if (!field) {
-    if (!default_value) {
-      // ErrorHandler::push_error_throw(ObjectReference(identifier),
-      //                                I_NO_FIELD_NOR_DEFAULT);
-    }
-    return *default_value;
+    return default_value;
   }
   return evaluate_ast_object(field->expression, m_ast, context, state);
 }
@@ -528,17 +512,15 @@ Interpreter::_solve_dependencies_parallel(IValue dependencies) {
     FrameGuard frame{
         DependencyBuildFrame(task_iteration.toString(), _task->reference)};
     int run_status = run_task(*_task, task_iteration.toString());
-    if (0 > run_status) {
-    }
-    // ErrorHandler::push_error(_task->reference, I_DEPENDENCY_FAILED);
+    if (0 > run_status)
+      ErrorHandler::halt(
+          EDependencyStatus{*_task, task_iteration, task_iteration.content});
     return {0 == run_status, modified};
   }
   if (!std::holds_alternative<IList>(dependencies.value) ||
       !std::get<IList>(dependencies.value).holds_istring()) {
-    // ErrorHandler::push_error_throw(
-    //     std::visit(QBVisitStreamReference{}, dependencies.value),
-    //     I_TYPE_DEPENDENCIES);
-    // __builtin_unreachable();
+    ErrorHandler::halt(
+        EVariableTypeMismatch{dependencies, "string or list<string>"});
   }
 
   std::vector<std::thread> pool;
@@ -567,7 +549,9 @@ Interpreter::_solve_dependencies_parallel(IValue dependencies) {
   }
 
   if (*error) {
-    // ErrorHandler::push_error(InternalNode{}, I_DEPENDENCY_FAILED);
+    // todo: halt in appropriate thread, perhaps?
+    // this is not good, because the calling context will have no
+    // reference as to what went wrong.
     return {false, modified};
   } else
     return {true, modified};
@@ -583,9 +567,9 @@ DependencyStatus Interpreter::_solve_dependencies_sync(IValue dependencies) {
       FrameGuard frame{
           DependencyBuildFrame(task_iteration.toString(), _task->reference)};
       int run_status = run_task(*_task, task_iteration.toString());
-      if (0 > run_status) {
-      }
-      // ErrorHandler::push_error(_task->reference, I_DEPENDENCY_FAILED);
+      if (0 > run_status)
+        ErrorHandler::halt(
+            EDependencyStatus{*_task, task_iteration, task_iteration.content});
       return {0 == run_status, modified};
     }
     return {true, modified};
@@ -606,18 +590,17 @@ DependencyStatus Interpreter::_solve_dependencies_sync(IValue dependencies) {
           DependencyBuildFrame(task_iteration.toString(), _task->reference)};
       int run_status = run_task(*_task, task_iteration.toString());
       if (0 > run_status) {
+        ErrorHandler::halt(
+            EDependencyStatus{*_task, task_iteration, task_iteration.content});
       }
-      // ErrorHandler::push_error(_task->reference, I_DEPENDENCY_FAILED);
-      if (0 > run_status) {
+      if (0 > run_status) { // what?
         return {false, modified};
       }
     }
     return {true, modified};
   } else {
-    // ErrorHandler::push_error_throw(
-    //     std::visit(QBVisitStreamReference{}, dependencies.value),
-    //     I_TYPE_DEPENDENCIES);
-    // __builtin_unreachable();
+    ErrorHandler::halt(
+        EVariableTypeMismatch{dependencies, "string or list<string>"});
   }
 }
 
@@ -636,18 +619,18 @@ int Interpreter::run_task(Task task, std::string task_iteration) {
   std::optional<size_t> dep_modified;
   if (dependencies) {
     IValue parallel_default = {IBool(false, task.reference), true};
+    // it is safe to unwrap the std::optional because we have a default value.
     IValue parallel =
-        evaluate_field_default(DEPENDS_PARALLEL, {task, task_iteration},
-                               this->state, parallel_default);
+        *evaluate_field_default(DEPENDS_PARALLEL, {task, task_iteration},
+                                this->state, parallel_default);
     if (!std::holds_alternative<IBool>(parallel.value)) {
-      // ErrorHandler::push_error_throw(
-      //     std::visit(QBVisitStreamReference{}, parallel.value),
-      //     I_TYPE_PARALLEL);
+      ErrorHandler::halt(EVariableTypeMismatch{parallel, "bool"});
     }
     DependencyStatus dep_stat =
         solve_dependencies(*dependencies, std::get<IBool>(parallel.value));
     dep_modified = dep_stat.modified;
     if (!dep_stat.success)
+      // todo: ErrorHandler
       return -1;
   }
 
@@ -666,19 +649,16 @@ int Interpreter::run_task(Task task, std::string task_iteration) {
     return 0; // abstract task.
   }
   IValue run_parallel_default = {IBool(false, task.reference), true};
-  IValue run_parallel = evaluate_field_default(
+  IValue run_parallel = *evaluate_field_default(
       RUN_PARALLEL, {task, task_iteration}, this->state, run_parallel_default);
   if (!std::holds_alternative<IBool>(run_parallel.value)) {
-    // ErrorHandler::push_error_throw(
-    //     std::visit(QBVisitStreamReference{}, run_parallel.value),
-    //     I_TYPE_PARALLEL);
+    ErrorHandler::halt(EVariableTypeMismatch{run_parallel, "bool"});
   }
   if (!std::holds_alternative<IString>(command_expr->value) &&
       !(std::holds_alternative<IList>(command_expr->value) &&
         std::get<IList>(command_expr->value).holds_istring())) {
-    // ErrorHandler::push_error_throw(
-    //     std::visit(QBVisitStreamReference{}, command_expr->value),
-    //     I_TYPE_RUN);
+    ErrorHandler::halt(
+        EVariableTypeMismatch{*command_expr, "string or list<string>"});
   }
 
   // execute task.
@@ -689,12 +669,13 @@ int Interpreter::run_task(Task task, std::string task_iteration) {
     OSLayer os_layer(std::get<IBool>(run_parallel.value), false);
     os_layer.queue_command({cmdline.toString(), cmdline.reference});
     os_layer.execute_queue();
-    // if (!os_layer.get_errors().empty()) {
-    // for (ErrorContext const &e_ctx : os_layer.get_errors()) {
-    //   ErrorHandler::push_error(e_ctx, I_NONZERO_PROCESS);
-    // }
-    // return -1;
-    // }
+
+    if (!os_layer.get_non_zero_commands().empty()) {
+      for (Command const &cmd : os_layer.get_non_zero_commands()) {
+        ErrorHandler::soft_report(ENonZeroProcess{cmd.cmdline, cmd.reference});
+      }
+      ErrorHandler::trigger_report();
+    }
   } else if (std::holds_alternative<IList>(command_expr->value) &&
              std::get<IList>(command_expr->value).holds_istring()) {
     // multiple commands
@@ -704,12 +685,13 @@ int Interpreter::run_task(Task task, std::string task_iteration) {
       os_layer.queue_command({cmdline.toString(), cmdline.reference});
     }
     os_layer.execute_queue();
-    // if (!os_layer.get_errors().empty()) {
-    // for (ErrorContext const &e_ctx : os_layer.get_errors()) {
-    //   ErrorHandler::push_error(e_ctx, I_NONZERO_PROCESS);
-    // }
-    // return -1;
-    // }
+
+    if (!os_layer.get_non_zero_commands().empty()) {
+      for (Command const &cmd : os_layer.get_non_zero_commands()) {
+        ErrorHandler::soft_report(ENonZeroProcess{cmd.cmdline, cmd.reference});
+      }
+      ErrorHandler::trigger_report();
+    }
   }
 
   LOG_STANDARD(GREEN << "✓" << RESET << " finished " << task_iteration);
@@ -721,8 +703,8 @@ int Interpreter::build() {
   this->state = std::make_shared<EvaluationState>();
 
   // find the task.
-  // if (m_ast.tasks.empty())
-  //   ErrorHandler::push_error_throw(InternalNode{}, I_NO_TASKS);
+  if (m_ast.tasks.empty())
+    ErrorHandler::halt(ENoTasks{});
   std::optional<Task> task;
   std::string task_iteration;
   if (m_setup.task) {
@@ -730,25 +712,20 @@ int Interpreter::build() {
         find_task(IString(*m_setup.task, {})); // todo: fix undefined reference
     task_iteration = *m_setup.task;
     if (!task) {
-      // ErrorHandler::push_error_throw(ObjectReference(*m_setup.task),
-      //                                I_SPECIFIED_TASK_NOT_FOUND);
+      ErrorHandler::halt(ETaskNotFound{task_iteration});
     }
-  } else if (m_ast.tasks.size() > 0) {
-    task = m_ast.tasks[0];
+  } else {
+    task = m_ast.tasks[0]; // we've already checked that it's not empty
     IValue task_iteration_ivalue = evaluate_ast_object(
-        m_ast.tasks[0].identifier, m_ast, {std::nullopt, std::nullopt}, state);
+        task->identifier, m_ast, {std::nullopt, std::nullopt}, state);
     if (!std::holds_alternative<IString>(task_iteration_ivalue.value)) {
-      // ErrorHandler::push_error_throw(
-      //     std::visit(IVisitReference{}, task_iteration_ivalue.value)
-      //         I_MULTIPLE_TASKS);
+      ErrorHandler::halt(EAmbiguousTask{*task});
     }
     task_iteration = std::get<IString>(evaluate_ast_object(
                                            m_ast.tasks[0].identifier, m_ast,
                                            {std::nullopt, std::nullopt}, state)
                                            .value)
                          .toString();
-  } else {
-    // ErrorHandler::push_error_throw(InternalNode{}, I_NO_TASKS);
   }
 
   LOG_STANDARD("⧗ building " << CYAN << task_iteration << RESET);
@@ -757,7 +734,8 @@ int Interpreter::build() {
   if (0 == run_task(*task, task_iteration)) {
     return 0;
   } else {
-    // ErrorHandler::push_error_throw(task->reference, I_BUILD_FAILED);
-    // __builtin_unreachable();
+    // if the build failed without halting the interpreter, there isn't really
+    // anything that can be done, so just inject a compiler crash.
+    throw std::exception();
   }
 }

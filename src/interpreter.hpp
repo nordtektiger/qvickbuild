@@ -97,7 +97,7 @@ private:
   std::optional<IValue>
   evaluate_field_optional(std::string identifier, EvaluationContext context,
                           std::shared_ptr<EvaluationState> state);
-  IValue evaluate_field_default(std::string identifier,
+  std::optional<IValue> evaluate_field_default(std::string identifier,
                                 EvaluationContext context,
                                 std::shared_ptr<EvaluationState> state,
                                 std::optional<IValue> default_value);

@@ -1,6 +1,7 @@
 #include "tracking.hpp"
 #include "lexer.hpp"
 #include "errors.hpp"
+#include <format>
 #include <functional>
 #include <variant>
 
@@ -43,7 +44,7 @@ std::vector<Token> Lexer::get_token_stream() {
       break;
     if (!match) {
       ErrorHandler::halt(
-          EInvalidSymbol{{m_index, 1}, std::to_string(m_current)});
+          EInvalidSymbol{{m_index, 1}, std::string(1, m_current)});
     }
   }
   return m_token_stream;
