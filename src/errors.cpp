@@ -233,7 +233,7 @@ char const *ENoMatchingIdentifier::get_exception_msg() {
 }
 
 EListTypeMismatch::EListTypeMismatch(IList list, IValue ivalue)
-    : faulty_ivalue(ivalue), list(list) {}
+    : list(list), faulty_ivalue(ivalue) {}
 
 std::string EListTypeMismatch::render_error(std::vector<unsigned char> config) {
   ReferenceView obj_view = ErrorRenderer::get_reference_view(
@@ -706,7 +706,7 @@ EInvalidInputFile::EInvalidInputFile(std::string path) {
   this->path = path;
 }
 
-std::string EInvalidInputFile::render_error(std::vector<unsigned char> config) {
+std::string EInvalidInputFile::render_error(std::vector<unsigned char>) {
   return std::format("{}{}error:{}{} config file '{}' is unreachable.{}", RED, BOLD, RESET, BOLD, path, RESET);
 }
 

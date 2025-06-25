@@ -1,7 +1,7 @@
-#include "tracking.hpp"
 #include "parser.hpp"
 #include "errors.hpp"
 #include "lexer.hpp"
+#include "tracking.hpp"
 #include <iostream>
 #include <memory>
 
@@ -205,7 +205,8 @@ std::optional<ASTObject> Parser::parse_replace() {
 
   if (!identifier)
     ErrorHandler::halt(ENoReplacementIdentifier{token_modify->reference});
-  StreamReference reference_initial = std::visit(ASTVisitReference{}, *identifier);
+  StreamReference reference_initial =
+      std::visit(ASTVisitReference{}, *identifier);
 
   std::optional<ASTObject> original = parse_primary();
   if (!original)
@@ -219,7 +220,10 @@ std::optional<ASTObject> Parser::parse_replace() {
   std::optional<ASTObject> replacement = parse_primary();
   if (!replacement)
     ErrorHandler::halt(ENoReplacementReplacement{token_arrow->reference});
-  StreamReference reference_final = std::visit(ASTVisitReference{}, *replacement);
+  // will take care of this soon, but compiler is complaining too much abt
+  // unused variables...
+  // StreamReference reference_final = std::visit(ASTVisitReference{},
+  // *replacement);
 
   return Replace{
       std::make_shared<ASTObject>(*identifier),

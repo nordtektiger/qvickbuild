@@ -2,7 +2,7 @@
 compiler = "g++";
 # flags_debug = "-g -O0 -fstandalone-debug -Wall -Wextra -pedantic-errors -std=c++20";
 flags_debug = "-g -O0 -Wall -Wextra -pedantic-errors -std=c++20";
-flags_release = "-O3 -fstandalone-debug -Wall -Wextra -pedantic-errors -std=c++20";
+flags_release = "-g -O3 -Wall -Wextra -pedantic-errors -std=c++20";
 
 # files to compile.
 sources = "src/*.cpp";
@@ -71,7 +71,7 @@ objects_release as obj {
 "clean" {
   run = "rm --force [objects]",
         "rm --force [binary]",
-        "rmdir obj",
-        "rmdir bin";
+        "rm --force --recursive obj",
+        "rm --force --recursive bin";
 }
 

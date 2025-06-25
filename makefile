@@ -1,7 +1,7 @@
 # General compiler arguments
 CXX = g++
 # CXXFLAGS = -g -fstandalone-debug -O0 -Wall -Wextra -pedantic-errors -std=c++20
-CXXFLAGS = -g -O3 -Wall -Wextra -pthread -pedantic-errors -std=c++20
+CXXFLAGS = -g -O3 -Wall -Wextra -pedantic-errors -std=c++20
 
 # Files to compile
 sources := $(wildcard src/*.cpp)
