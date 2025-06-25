@@ -353,6 +353,17 @@ public:
   EEmptyExpression(StreamReference);
 };
 
+class EInvalidInputFile : public BuildError {
+private:
+  std::string path;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  EInvalidInputFile() = delete;
+  EInvalidInputFile(std::string);
+};
+
 // api-facing error handler.
 class ErrorHandler {
 private:

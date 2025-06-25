@@ -702,6 +702,16 @@ std::string EEmptyExpression::render_error(std::vector<unsigned char> config) {
 
 char const *EEmptyExpression::get_exception_msg() { return "Empty expression"; }
 
+EInvalidInputFile::EInvalidInputFile(std::string path) {
+  this->path = path;
+}
+
+std::string EInvalidInputFile::render_error(std::vector<unsigned char> config) {
+  return std::format("{}{}error:{}{} config file '{}' is unreachable.{}", RED, BOLD, RESET, BOLD, path, RESET);
+}
+
+char const *EInvalidInputFile::get_exception_msg() { return "Invalid input file"; }
+
 std::unordered_map<size_t, std::shared_ptr<BuildError>>
     ErrorHandler::error_state = {};
 std::mutex ErrorHandler::error_lock;
@@ -769,6 +779,7 @@ template void ErrorHandler::halt<ENoTasks>(ENoTasks);
 template void ErrorHandler::halt<ETaskNotFound>(ETaskNotFound);
 template void ErrorHandler::halt<EAmbiguousTask>(EAmbiguousTask);
 template void ErrorHandler::halt<ENonZeroProcess>(ENonZeroProcess);
+template void ErrorHandler::halt<EInvalidInputFile>(EInvalidInputFile);
 template void
     ErrorHandler::soft_report<ENoMatchingIdentifier>(ENoMatchingIdentifier);
 template void ErrorHandler::soft_report<EInvalidSymbol>(EInvalidSymbol);
@@ -804,6 +815,7 @@ template void ErrorHandler::soft_report<ENoTasks>(ENoTasks);
 template void ErrorHandler::soft_report<ETaskNotFound>(ETaskNotFound);
 template void ErrorHandler::soft_report<EAmbiguousTask>(EAmbiguousTask);
 template void ErrorHandler::soft_report<ENonZeroProcess>(ENonZeroProcess);
+template void ErrorHandler::soft_report<EInvalidInputFile>(EInvalidInputFile);
 template FrameGuard::FrameGuard(IdentifierEvaluateFrame);
 template FrameGuard::FrameGuard(EntryBuildFrame);
 template FrameGuard::FrameGuard(DependencyBuildFrame);

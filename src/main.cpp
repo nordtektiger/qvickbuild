@@ -4,45 +4,51 @@
 #include <vector>
 
 int main(int argc, char **argv) {
-  // Collect all arguments except first which is the binary
+  // collect all arguments (except first which is the binary)
   std::vector<std::string> args(argv + 1, argv + argc);
 
-  // Parse arguments to create the preferred setup
-  // TODO: Consider exiting with an error if argument isn't recognized
+  // parse arguments to setup driver
   Setup setup = Driver::default_setup();
-  for (const auto &arg : args) {
-    if (arg == "--stdin")
+  for (auto arg_it = args.begin(); arg_it != args.end(); arg_it++) {
+    if (*arg_it == "--stdin") {
       setup.input_method = InputMethod::Stdin;
-    else if (arg == "--configfile")
+    } else if (*arg_it == "--configfile") {
       setup.input_method = InputMethod::ConfigFile;
-    else if (arg == "--log-quiet")
+      arg_it++;
+      if (arg_it == args.end()) {
+        std::cerr << "error: no config file was specified. cannot proceed."
+                  << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      setup.input_file = *arg_it;
+    } else if (*arg_it == "--log-quiet") {
       setup.logging_level = LoggingLevel::Quiet;
-    else if (arg == "--log-standard")
+    } else if (*arg_it == "--log-standard") {
       setup.logging_level = LoggingLevel::Standard;
-    else if (arg == "--log-verbose")
+    } else if (*arg_it == "--log-verbose") {
       setup.logging_level = LoggingLevel::Verbose;
-    else if (arg == "--dry-run")
+    } else if (*arg_it == "--dry-run") {
       setup.dry_run = true;
-    else if (arg == "--help") {
-      std::cout << "Usage: quickbuild [arguments] <task>\n"
+    } else if (*arg_it == "--help") {
+      std::cout << "Usage: quickbuild [arguments] [task]\n"
                    "  --stdin: reads config from stdin\n"
-                   "  --configfile: reads config from file\n"
+                   "  --configfile [file]: reads config from specified file\n"
                    "  --log-quiet: sets logging level to quiet\n"
                    "  --log-standard: sets logging level to standard\n"
                    "  --log-verbose: sets logging level to verbose\n"
                    "  --dry-run: doesn't execute any commands\n"
                    "  --help: shows this message and exits\n";
       exit(EXIT_SUCCESS);
-    } else if (!setup.task)
-      setup.task = arg;
-    else {
-      std::cerr << "Error: More than one task was selected. Cannot proceed."
+    } else if (!setup.task) {
+      setup.task = *arg_it;
+    } else {
+      std::cerr << "error: more than one task was specified. cannot proceed."
                 << std::endl;
       exit(EXIT_FAILURE);
     }
   }
 
-  // Run driver
+  // run driver
   // try {
   Driver driver = Driver(setup);
   return driver.run();

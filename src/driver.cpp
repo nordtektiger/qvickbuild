@@ -5,27 +5,26 @@
 #include "lexer.hpp"
 #include "parser.hpp"
 
+#include <cassert>
 #include <format>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
 
-#define CONFIG_FILE "./quickbuild"
-
 Driver::Driver(Setup setup) { m_setup = setup; }
 
 Setup Driver::default_setup() {
-  return Setup{std::nullopt, InputMethod::ConfigFile, LoggingLevel::Standard,
-               false};
+  return Setup{std::nullopt, InputMethod::ConfigFile, "quickbuild",
+               LoggingLevel::Standard, false};
 }
 
 std::vector<unsigned char> Driver::get_config() {
   switch (m_setup.input_method) {
   case InputMethod::ConfigFile: {
-    std::ifstream config_file(CONFIG_FILE, std::ios::binary);
+    std::ifstream config_file(m_setup.input_file, std::ios::binary);
     if (!config_file.is_open())
-      throw DriverException("driver-d002: couldn't find config file");
+      ErrorHandler::halt(EInvalidInputFile{m_setup.input_file});
     return std::vector<unsigned char>(std::istreambuf_iterator(config_file),
                                       {});
   }
@@ -37,6 +36,10 @@ std::vector<unsigned char> Driver::get_config() {
     return std::vector<unsigned char>(all.begin(), all.end());
   }
   }
+  // code execution will never get here (let's hope)
+  // keeps the compiler quiet
+  assert(false && "driver encountered an unrecognized input method");
+  __builtin_unreachable();
 }
 
 void Driver::unwind_errors(std::vector<unsigned char> config) {
@@ -66,12 +69,16 @@ void Driver::unwind_errors(std::vector<unsigned char> config) {
 int Driver::run() {
   LOG_STANDARD(BOLD << "[ quickbuild dev v0.8.0 ]" << RESET);
 
-  // config needs to be fetched out of scope so that
+  // config needs to be initialized out of scope so that
   // it can be read when unwinding the error stack.
   LOG_STANDARD("⧗ compiling config...");
-  std::vector<unsigned char> config = get_config();
+  std::vector<unsigned char> config;
 
   try {
+    // we still need to read this within the try-catch because
+    // the file may not exist, but we still need to render the error
+    config = get_config();
+
     // build script.
     Lexer lexer(config);
     std::vector<Token> token_stream;

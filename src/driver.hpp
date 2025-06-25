@@ -21,6 +21,7 @@ enum class LoggingLevel {
 struct Setup {
   std::optional<std::string> task;
   InputMethod input_method;
+  std::string input_file; // only used for InputMethod::ConfigFile
   LoggingLevel logging_level;
   bool dry_run;
 };
@@ -35,15 +36,6 @@ public:
   Driver(Setup);
   static Setup default_setup();
   int run();
-};
-
-class DriverException : public std::exception {
-private:
-  const char *details;
-
-public:
-  DriverException(const char *details) : details(details) {};
-  const char *what() const noexcept override { return details; }
 };
 
 #endif
