@@ -1,4 +1,8 @@
-build-job:
+stages:
+  - build
+  - test
+
+build:
   image: gcc
   script:
     - make clean
@@ -7,10 +11,10 @@ build-job:
     paths:
       - bin/quickbuild
 
-test-job:
+test:
   image: gcc
   script:
-    - ./bin/quickbuild --configfile tests/test1
     - ./bin/quickbuild
+    - ./bin/quickbuild --configfile tests/test1
   dependencies:
-    - build-job
+    - build
