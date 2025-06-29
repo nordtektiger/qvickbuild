@@ -3,6 +3,7 @@ stages:
   - test
 
 build:
+  stage: build
   image: gcc
   script:
     - make clean
@@ -12,6 +13,7 @@ build:
       - bin/quickbuild
 
 test:
+  stage: test
   image: gcc
   script:
     - ./bin/quickbuild
