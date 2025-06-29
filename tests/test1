@@ -1,0 +1,16 @@
+# tests comments, list flattening, expression evaluation order, and replacement operator.
+var1 = "string";
+var2 = false;
+var3 = true;
+var4 = "1", "2", "3";
+var5 = false, true, false;
+var6 = "foo1", "bar1", "baz1";
+test = [var1, var4, var6]: "1" -> "#";
+# ans = "string # 2 3 foo# bar# baz#";
+
+"verify" {
+  run = "echo '[test]'";
+  # todo: automatically fail build if strings don't match by utilizing shell scripting.
+  # run = "if \[ '[test]' = '[ans]' \]; then exit 0; else exit -1; fi";
+}
+

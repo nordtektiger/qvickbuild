@@ -6,3 +6,11 @@ build-job:
   artifacts:
     paths:
       - bin/quickbuild
+
+test-job:
+  image: gcc
+  script:
+    - ./bin/quickbuild --configfile tests/test1
+    - ./bin/quickbuild
+  dependencies:
+    - build-job
