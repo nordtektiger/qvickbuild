@@ -112,7 +112,7 @@ std::optional<Field> Parser::parse_field() {
   Token identifier_token = *consume_token();
   Identifier identifier = Identifier{
       std::get<CTX_STR>(*identifier_token.context), identifier_token.reference};
-  StreamReference reference = identifier_token.reference;
+  StreamReference ref_initial = identifier_token.reference;
   consume_token(); // consume the `=`.
 
   std::optional<ASTObject> ast_object = parse_ast_object();
@@ -120,13 +120,16 @@ std::optional<Field> Parser::parse_field() {
     ErrorHandler::halt(ENoValue{identifier});
 
   ASTObject expression = *ast_object;
-  if (!consume_if(TokenType::LineStop)) {
+  std::optional<Token> linestop_token;
+  if (!(linestop_token = consume_if(TokenType::LineStop))) {
     if (m_index >= 1)
       ErrorHandler::halt(ENoLinestop{m_token_stream[m_index - 1].reference});
     else
       ErrorHandler::halt(ENoLinestop{m_token_stream[0].reference});
   }
-  return Field{identifier, expression, reference};
+  StreamReference ref_final = linestop_token->reference;
+  return Field{identifier, expression,
+               Tracking::sum_references(ref_initial, ref_final)};
 }
 
 // attempts to parse a task.
@@ -134,6 +137,8 @@ std::optional<Task> Parser::parse_task() {
   std::optional<ASTObject> identifier = parse_ast_object();
   if (!identifier)
     return std::nullopt;
+  // technically not fully representative of task, but we also don't want
+  // to render the entire task in the code preview if something goes wrong
   StreamReference reference = std::visit(ASTVisitReference{}, *identifier);
   Identifier iterator = Identifier{"__task__", reference};
   // check if an explicit iterator name has been declared.
@@ -191,9 +196,10 @@ std::optional<ASTObject> Parser::parse_list() {
 
   if (contents.size() == 1)
     return contents[0];
-  StreamReference reference = std::visit(ASTVisitReference{}, contents[0]);
+  StreamReference ref_initial = std::visit(ASTVisitReference{}, contents[0]);
+  StreamReference ref_final = std::visit(ASTVisitReference{}, contents.back());
 
-  return List{contents, reference};
+  return List{contents, Tracking::sum_references(ref_initial, ref_final)};
 }
 
 // recursive descent parser, see grammar.
@@ -205,8 +211,7 @@ std::optional<ASTObject> Parser::parse_replace() {
 
   if (!identifier)
     ErrorHandler::halt(ENoReplacementIdentifier{token_modify->reference});
-  StreamReference reference_initial =
-      std::visit(ASTVisitReference{}, *identifier);
+  StreamReference ref_initial = std::visit(ASTVisitReference{}, *identifier);
 
   std::optional<ASTObject> original = parse_primary();
   if (!original)
@@ -220,16 +225,13 @@ std::optional<ASTObject> Parser::parse_replace() {
   std::optional<ASTObject> replacement = parse_primary();
   if (!replacement)
     ErrorHandler::halt(ENoReplacementReplacement{token_arrow->reference});
-  // will take care of this soon, but compiler is complaining too much abt
-  // unused variables...
-  // StreamReference reference_final = std::visit(ASTVisitReference{},
-  // *replacement);
+  StreamReference ref_final = std::visit(ASTVisitReference{}, *replacement);
 
   return Replace{
       std::make_shared<ASTObject>(*identifier),
       std::make_shared<ASTObject>(*original),
       std::make_shared<ASTObject>(*replacement),
-      reference_initial, // todo: calculate this appropriately
+      Tracking::sum_references(ref_initial, ref_final),
   };
 }
 
@@ -248,7 +250,7 @@ std::optional<ASTObject> Parser::parse_primary() {
     std::vector<ASTObject> contents;
     std::vector<Token> internal_token_stream =
         std::get<CTX_VEC>(*token->context);
-    StreamReference reference = internal_token_stream[0].reference;
+    StreamReference reference = token->reference;
     // note: only identifiers and literals may be present.
     for (size_t i = 0; i < internal_token_stream.size(); i++) {
       Token internal_token = internal_token_stream[i];

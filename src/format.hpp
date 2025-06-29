@@ -6,7 +6,7 @@
 #include <ostream>
 #include <unistd.h>
 
-// Disable coloured output if no interactive terminal is found
+// disable coloured output if no interactive terminal is found.
 #define GREEN (isatty(STDOUT_FILENO) ? "\033[32m" : "")
 #define GREY (isatty(STDOUT_FILENO) ? "\033[35m" : "")
 #define RED (isatty(STDOUT_FILENO) ? "\033[91m" : "")
