@@ -4,7 +4,7 @@ stages:
 
 build:
   stage: build
-  image: archlinux
+  image: archlinux:base-devel
   script:
     - make clean
     - make
