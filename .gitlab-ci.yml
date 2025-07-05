@@ -4,7 +4,7 @@ stages:
 
 build:
   stage: build
-  image: silkeh/clang
+  image: archlinux
   script:
     - make clean
     - make

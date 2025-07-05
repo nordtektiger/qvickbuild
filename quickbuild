@@ -1,8 +1,7 @@
 # general compiler arguments.
-compiler = "clang++";
-# flags_debug = "-g -O0 -fstandalone-debug -Wall -Wextra -pedantic-errors -std=c++20";
+compiler = "g++";
 flags_debug = "-g -O0 -Wall -Wextra -pedantic-errors -std=c++20";
-flags_release = "-g -O3 -Wall -Wextra -pedantic-errors -std=c++20";
+flags_release = "-O3 -Wall -Wextra -pedantic-errors -std=c++20";
 
 # files to compile.
 sources = "./src/*.cpp";
@@ -47,7 +46,6 @@ objects_debug as obj {
   # if a header is changed, everything needs to be rebuilt.
   obj_cpp = obj: "./obj/*.o" -> "./src/*.cpp";
   depends = obj_cpp, headers;
-  # run = "echo [objects_debug], [obj]";
   run = "[compiler] [flags_debug] -c [obj_cpp] -o [obj]";
 }
 objects_release as obj {
