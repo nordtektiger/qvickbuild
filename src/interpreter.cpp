@@ -60,10 +60,10 @@ IList::IList(std::variant<std::vector<IString>, std::vector<IBool>> contents,
   }
 }
 bool IList::holds_istring() const {
-  return (this->contents.index() == QBLIST_STR);
+  return (this->contents.index() == ILIST_STR);
 }
 bool IList::holds_ibool() const {
-  return (this->contents.index() == QBLIST_BOOL);
+  return (this->contents.index() == ILIST_BOOL);
 }
 bool IList::operator==(IList const other) const {
   return this->contents == other.contents;
@@ -154,7 +154,7 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
 // note: we handle globbing **after** evaluating a formatted literal.
 IValue ASTEvaluate::operator()(Literal const &literal) {
   return {IString(literal.content, literal.reference)};
-};
+}
 
 // helper method: handles globbing.
 IValue expand_literal(IString input_istring, bool immutable) {
@@ -210,27 +210,26 @@ IValue ASTEvaluate::operator()(FormattedLiteral const &formatted_literal) {
     }
     // append a list of strings.
     else if (std::holds_alternative<IList>(obj_result.value) &&
-             std::get<IList>(obj_result.value).contents.index() == QBLIST_STR) {
+             std::get<IList>(obj_result.value).contents.index() == ILIST_STR) {
       IList obj_result_list = std::get<IList>(obj_result.value);
       for (size_t i = 0;
-           i < std::get<QBLIST_STR>(obj_result_list.contents).size(); i++) {
-        out += std::get<QBLIST_STR>(obj_result_list.contents)[i].content;
+           i < std::get<ILIST_STR>(obj_result_list.contents).size(); i++) {
+        out += std::get<ILIST_STR>(obj_result_list.contents)[i].content;
         immutable &= obj_result.immutable;
-        if (i < std::get<QBLIST_STR>(obj_result_list.contents).size() - 1)
+        if (i < std::get<ILIST_STR>(obj_result_list.contents).size() - 1)
           out += " ";
       }
     }
     // append a list of bools.
     else if (std::holds_alternative<IList>(obj_result.value) &&
-             std::get<IList>(obj_result.value).contents.index() ==
-                 QBLIST_BOOL) {
+             std::get<IList>(obj_result.value).contents.index() == ILIST_BOOL) {
       IList obj_result_list = std::get<IList>(obj_result.value);
       for (size_t i = 0;
-           i < std::get<QBLIST_BOOL>(obj_result_list.contents).size(); i++) {
-        out += (std::get<QBLIST_BOOL>(obj_result_list.contents)[i] ? "true"
-                                                                   : "false");
+           i < std::get<ILIST_BOOL>(obj_result_list.contents).size(); i++) {
+        out += (std::get<ILIST_BOOL>(obj_result_list.contents)[i] ? "true"
+                                                                  : "false");
         immutable &= obj_result.immutable;
-        if (i < std::get<QBLIST_BOOL>(obj_result_list.contents).size() - 1)
+        if (i < std::get<ILIST_BOOL>(obj_result_list.contents).size() - 1)
           out += " ";
       }
     }
@@ -266,26 +265,26 @@ IValue ASTEvaluate::operator()(List const &list) {
 
   // add the early evaluated first element.
   if (std::holds_alternative<IString>(_obj_result.value)) {
-    std::get<QBLIST_STR>(out.contents)
+    std::get<ILIST_STR>(out.contents)
         .push_back(std::get<IString>(_obj_result.value));
     immutable &= _obj_result.immutable;
   } else if (std::holds_alternative<IBool>(_obj_result.value)) {
-    std::get<QBLIST_BOOL>(out.contents)
+    std::get<ILIST_BOOL>(out.contents)
         .push_back(std::get<IBool>(_obj_result.value));
     immutable &= _obj_result.immutable;
   } else if (std::holds_alternative<IList>(_obj_result.value)) {
     IList obj_result_ilist = std::get<IList>(_obj_result.value);
     if (obj_result_ilist.holds_istring() && out.holds_istring()) {
-      std::get<QBLIST_STR>(out.contents)
-          .insert(std::get<QBLIST_STR>(out.contents).begin(),
-                  std::get<QBLIST_STR>(obj_result_ilist.contents).begin(),
-                  std::get<QBLIST_STR>(obj_result_ilist.contents).end());
+      std::get<ILIST_STR>(out.contents)
+          .insert(std::get<ILIST_STR>(out.contents).begin(),
+                  std::get<ILIST_STR>(obj_result_ilist.contents).begin(),
+                  std::get<ILIST_STR>(obj_result_ilist.contents).end());
       immutable &= _obj_result.immutable;
     } else if (obj_result_ilist.holds_ibool() && out.holds_ibool()) {
-      std::get<QBLIST_BOOL>(out.contents)
-          .insert(std::get<QBLIST_BOOL>(out.contents).begin(),
-                  std::get<QBLIST_BOOL>(obj_result_ilist.contents).begin(),
-                  std::get<QBLIST_BOOL>(obj_result_ilist.contents).end());
+      std::get<ILIST_BOOL>(out.contents)
+          .insert(std::get<ILIST_BOOL>(out.contents).begin(),
+                  std::get<ILIST_BOOL>(obj_result_ilist.contents).begin(),
+                  std::get<ILIST_BOOL>(obj_result_ilist.contents).end());
       immutable &= _obj_result.immutable;
     }
   }
@@ -296,14 +295,14 @@ IValue ASTEvaluate::operator()(List const &list) {
     IValue obj_result = std::visit(ast_visitor, ast_obj);
     if (std::holds_alternative<IString>(obj_result.value)) {
       if (out.holds_istring()) {
-        std::get<QBLIST_STR>(out.contents)
+        std::get<ILIST_STR>(out.contents)
             .push_back(std::get<IString>(obj_result.value));
         immutable &= _obj_result.immutable;
       } else
         ErrorHandler::halt(EListTypeMismatch{out, obj_result});
     } else if (std::holds_alternative<IBool>(obj_result.value)) {
       if (out.holds_ibool()) {
-        std::get<QBLIST_BOOL>(out.contents)
+        std::get<ILIST_BOOL>(out.contents)
             .push_back(std::get<IBool>(obj_result.value));
         immutable &= _obj_result.immutable;
       } else
@@ -311,16 +310,16 @@ IValue ASTEvaluate::operator()(List const &list) {
     } else if (std::holds_alternative<IList>(obj_result.value)) {
       IList obj_result_ilist = std::get<IList>(obj_result.value);
       if (obj_result_ilist.holds_istring() && out.holds_istring()) {
-        std::get<QBLIST_STR>(out.contents)
-            .insert(std::get<QBLIST_STR>(out.contents).end(),
-                    std::get<QBLIST_STR>(obj_result_ilist.contents).begin(),
-                    std::get<QBLIST_STR>(obj_result_ilist.contents).end());
+        std::get<ILIST_STR>(out.contents)
+            .insert(std::get<ILIST_STR>(out.contents).end(),
+                    std::get<ILIST_STR>(obj_result_ilist.contents).begin(),
+                    std::get<ILIST_STR>(obj_result_ilist.contents).end());
         immutable &= _obj_result.immutable;
       } else if (obj_result_ilist.holds_ibool() && out.holds_ibool()) {
-        std::get<QBLIST_BOOL>(out.contents)
-            .insert(std::get<QBLIST_BOOL>(out.contents).end(),
-                    std::get<QBLIST_BOOL>(obj_result_ilist.contents).begin(),
-                    std::get<QBLIST_BOOL>(obj_result_ilist.contents).end());
+        std::get<ILIST_BOOL>(out.contents)
+            .insert(std::get<ILIST_BOOL>(out.contents).end(),
+                    std::get<ILIST_BOOL>(obj_result_ilist.contents).begin(),
+                    std::get<ILIST_BOOL>(obj_result_ilist.contents).end());
         immutable &= _obj_result.immutable;
       } else {
         ErrorHandler::halt(EListTypeMismatch{out, obj_result});
@@ -329,97 +328,156 @@ IValue ASTEvaluate::operator()(List const &list) {
   }
 
   return {out, immutable};
-};
+}
 
 IValue ASTEvaluate::operator()(Boolean const &boolean) {
   return {IBool(boolean.content, boolean.reference)};
-};
+}
+
+struct Wildcard {};
+using StringComponent = std::variant<Wildcard, std::string>;
 
 IValue ASTEvaluate::operator()(Replace const &replace) {
-  // override use_globbing to false, we want to handle the wildcards
-  // separately.
+  // override use_globbing to false since the wildcards need to be handled here.
   EvaluationContext _context =
       EvaluationContext{context.task_scope, context.task_iteration, false};
   ASTEvaluate ast_visitor = {ast, _context, state};
-  IValue identifier = std::visit(ast_visitor, *replace.identifier);
-  IValue original = std::visit(ast_visitor, *replace.original);
-  IValue replacement = std::visit(ast_visitor, *replace.replacement);
+  IValue input = std::visit(ast_visitor, *replace.input);
+  IValue filter = std::visit(ast_visitor, *replace.filter);
+  IValue product = std::visit(ast_visitor, *replace.product);
 
-  bool immutable = true;
-  immutable &= identifier.immutable;
-  immutable &= original.immutable;
-  immutable &= replacement.immutable;
+  bool immutable = input.immutable && filter.immutable && product.immutable;
 
-  if (!std::holds_alternative<IString>(original.value))
-    ErrorHandler::halt(EReplaceTypeMismatch{replace, original});
+  // verify types.
+  if (!std::holds_alternative<IString>(filter.value))
+    ErrorHandler::halt(EReplaceTypeMismatch{replace, filter});
 
-  if (!std::holds_alternative<IString>(replacement.value))
-    ErrorHandler::halt(EReplaceTypeMismatch{replace, replacement});
+  if (!std::holds_alternative<IString>(product.value))
+    ErrorHandler::halt(EReplaceTypeMismatch{replace, product});
 
-  IList input{{}, replace.reference};
-  IList output{{}, replace.reference};
-  if (std::holds_alternative<IList>(identifier.value) &&
-      std::get<IList>(identifier.value).holds_istring())
-    input = std::get<IList>(identifier.value);
-  else if (std::holds_alternative<IString>(identifier.value))
-    std::get<QBLIST_STR>(input.contents)
-        .push_back(std::get<IString>(identifier.value));
+  // fetch input.
+  IList input_parsed{{}, replace.reference};
+  IList output_parsed{{}, replace.reference};
+  if (std::holds_alternative<IList>(input.value) &&
+      std::get<IList>(input.value).holds_istring())
+    input_parsed = std::get<IList>(input.value);
+  else if (std::holds_alternative<IString>(input.value))
+    std::get<ILIST_STR>(input_parsed.contents)
+        .push_back(std::get<IString>(input.value));
   else
-    ErrorHandler::halt(EReplaceTypeMismatch{replace, identifier});
+    ErrorHandler::halt(EReplaceTypeMismatch{replace, input});
 
-  // split original and replacement into chunks.
-  std::vector<std::string> original_chunked;
-  std::stringstream original_ss(std::get<IString>(original.value).toString());
-  std::string original_buf;
-  while (std::getline(original_ss, original_buf, '*'))
-    original_chunked.push_back(original_buf);
-  std::vector<std::string> replacement_chunked;
-  std::stringstream replacement_ss(
-      std::get<IString>(replacement.value).toString());
-  std::string replacement_buf;
-  while (std::getline(replacement_ss, replacement_buf, '*'))
-    replacement_chunked.push_back(replacement_buf);
+  std::string filter_str = std::get<IString>(filter.value).content;
+  std::string product_str = std::get<IString>(product.value).content;
 
-  if (original_chunked.size() < replacement_chunked.size())
-    ErrorHandler::halt(EReplaceChunksLength{replacement});
-
-  // actual string manipulation.
-  for (IString const &istring : std::get<QBLIST_STR>(input.contents)) {
-    // split input into sections as delimited by the original chunks.
-    std::vector<std::string> input_chunked;
-    size_t last_token_i = 0;
-    for (std::string original_token : original_chunked) {
-      size_t token_i = istring.toString().find(original_token, last_token_i);
-      if (token_i == std::string::npos) {
-        std::get<QBLIST_STR>(output.contents).push_back(istring);
-        last_token_i = std::string::npos;
-        break;
+  // preprocess filter and product string to simplify the matching algorithm.
+  std::vector<StringComponent> filter_parsed;
+  std::string str_buf;
+  for (size_t i = 0; i < filter_str.size(); i++) {
+    if (filter_str[i] == '*') {
+      if (!str_buf.empty()) {
+        filter_parsed.push_back(str_buf);
+        str_buf = "";
       }
-      input_chunked.push_back(
-          istring.toString().substr(last_token_i, (token_i - last_token_i)));
-      last_token_i = token_i + original_token.length();
-    }
-    if (last_token_i == std::string::npos)
-      continue;
-    // last element.
-    input_chunked.push_back(istring.toString().substr(last_token_i));
-
-    // reconstruct new element from the chunked input and chunked
-    // replacement.
-    std::string reconstructed;
-    for (size_t i = 0; i < input_chunked.size() - 1; i++) {
-      reconstructed += input_chunked[i];
-      reconstructed += replacement_chunked[i];
-    }
-    // last element.
-    reconstructed += input_chunked[input_chunked.size() - 1];
-    std::get<QBLIST_STR>(output.contents)
-        .push_back(IString(reconstructed, replace.reference));
+      filter_parsed.push_back(Wildcard{});
+    } else
+      str_buf += filter_str[i];
   }
-  // todo: consider returning a single istring if list only contains one
-  // item.
-  return {output, immutable};
-};
+  if (!str_buf.empty()) {
+    filter_parsed.push_back(str_buf);
+    str_buf = "";
+  }
+
+  // preprocess product string
+  std::vector<StringComponent> product_parsed;
+  for (size_t i = 0; i < product_str.size(); i++) {
+    if (product_str[i] == '*') {
+      if (!str_buf.empty()) {
+        product_parsed.push_back(str_buf);
+        str_buf = "";
+      }
+      product_parsed.push_back(Wildcard{});
+    } else
+      str_buf += product_str[i];
+  }
+  if (!str_buf.empty()) {
+    product_parsed.push_back(str_buf);
+    str_buf = "";
+  }
+
+  if (product_parsed.size() > filter_parsed.size())
+    ErrorHandler::halt(EReplaceChunksLength{product});
+
+  // matching algorithm: traverse filter vector
+  for (const IString &istring : std::get<ILIST_STR>(input_parsed.contents)) {
+    size_t i = 0;
+    bool elem_match = true;
+    std::vector<std::string> reconstruction_vector;
+    for (size_t i_comp = 0; i_comp < filter_parsed.size(); i_comp++) {
+      StringComponent const &str_component = filter_parsed[i_comp];
+      if (std::holds_alternative<std::string>(str_component)) {
+        // match exact characters
+        std::string match_criteria = std::get<std::string>(str_component);
+        if (match_criteria.size() > istring.content.size()) {
+          std::cerr << "false 1" << std::endl;
+          elem_match = false;
+          break;
+        } else if (match_criteria !=
+                   istring.content.substr(i, match_criteria.size())) {
+          std::cerr << "false 2" << std::endl;
+          elem_match = false;
+          break;
+        }
+        i += match_criteria.size();
+      } else {
+        // wildcard
+        if (i_comp >= filter_parsed.size() - 1) // final asterisk
+          break;
+        bool seg_match = false;
+        std::string match_criteria =
+            std::get<std::string>(filter_parsed[i_comp + 1]);
+        for (size_t i_seg = 0;
+             i_seg < istring.content.size() - i - match_criteria.size() + 1;
+             i_seg++) {
+          if (istring.content.substr(i + i_seg, match_criteria.size()) ==
+              match_criteria) {
+            seg_match = true;
+            reconstruction_vector.push_back(istring.content.substr(i, i_seg));
+            i += i_seg + match_criteria.size();
+            break;
+          }
+        }
+        if (!seg_match) {
+          std::cerr << "false 3" << std::endl;
+          elem_match = false;
+          break;
+        } else {
+          // increment this twice because two components have been matched.
+          i_comp++;
+        }
+      }
+    }
+
+    if (!elem_match)
+      std::get<ILIST_STR>(output_parsed.contents).push_back(istring);
+    else {
+      std::string reconstructed;
+      size_t i_reconstruction_vec = 0;
+      for (StringComponent const &str_component : product_parsed) {
+        if (std::holds_alternative<std::string>(str_component))
+          reconstructed += std::get<std::string>(str_component);
+        else {
+          reconstructed += reconstruction_vector[i_reconstruction_vec];
+          i_reconstruction_vec++;
+        }
+      }
+      std::get<ILIST_STR>(output_parsed.contents)
+          .push_back({reconstructed, istring.reference});
+    }
+  }
+
+  return {output_parsed, immutable};
+}
 
 Interpreter::Interpreter(AST &ast, Setup &setup)
     : m_ast(ast), m_setup(setup) {};
@@ -434,7 +492,7 @@ std::optional<Task> Interpreter::find_task(IString identifier) {
     } else if (std::holds_alternative<IList>(task_i.value) &&
                std::get<IList>(task_i.value).holds_istring()) {
       for (IString task_j :
-           std::get<QBLIST_STR>(std::get<IList>(task_i.value).contents)) {
+           std::get<ILIST_STR>(std::get<IList>(task_i.value).contents)) {
         if (task_j == identifier)
           return task;
       }
@@ -531,7 +589,7 @@ Interpreter::_solve_dependencies_parallel(IValue dependencies) {
   std::optional<size_t> modified;
 
   for (IString task_iteration :
-       std::get<QBLIST_STR>(std::get<IList>(dependencies.value).contents)) {
+       std::get<ILIST_STR>(std::get<IList>(dependencies.value).contents)) {
     std::optional<Task> _task = find_task(task_iteration);
     std::optional<size_t> modified_i =
         OSLayer::get_file_timestamp(task_iteration.toString());
@@ -577,7 +635,7 @@ DependencyStatus Interpreter::_solve_dependencies_sync(IValue dependencies) {
              std::get<IList>(dependencies.value).holds_istring()) {
     std::optional<size_t> modified;
     for (IString task_iteration :
-         std::get<QBLIST_STR>(std::get<IList>(dependencies.value).contents)) {
+         std::get<ILIST_STR>(std::get<IList>(dependencies.value).contents)) {
       std::optional<Task> _task = find_task(task_iteration);
       std::optional<size_t> modified_i =
           OSLayer::get_file_timestamp(task_iteration.toString());
@@ -681,7 +739,7 @@ int Interpreter::run_task(Task task, std::string task_iteration) {
     // multiple commands
     OSLayer os_layer(std::get<IBool>(run_parallel.value), false);
     for (IString cmdline :
-         std::get<QBLIST_STR>(std::get<IList>(command_expr->value).contents)) {
+         std::get<ILIST_STR>(std::get<IList>(command_expr->value).contents)) {
       os_layer.queue_command({cmdline.toString(), cmdline.reference});
     }
     os_layer.execute_queue();

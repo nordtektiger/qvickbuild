@@ -49,9 +49,9 @@ struct List {
   // List() = delete;
 };
 struct Replace {
-  std::shared_ptr<ASTObject> identifier;
-  std::shared_ptr<ASTObject> original;
-  std::shared_ptr<ASTObject> replacement;
+  std::shared_ptr<ASTObject> input;
+  std::shared_ptr<ASTObject> filter;
+  std::shared_ptr<ASTObject> product;
   StreamReference reference;
   bool operator==(Replace const &other) const;
   // Replace() = delete;

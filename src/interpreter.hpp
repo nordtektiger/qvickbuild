@@ -34,8 +34,8 @@ struct IBool {
   bool operator==(IBool const other) const;
 };
 
-#define QBLIST_STR 0
-#define QBLIST_BOOL 1
+#define ILIST_STR 0
+#define ILIST_BOOL 1
 
 struct IList {
   StreamReference reference;

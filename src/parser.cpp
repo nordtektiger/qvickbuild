@@ -20,9 +20,9 @@ bool Boolean::operator==(Boolean const &other) const {
   return this->content == other.content;
 }
 bool Replace::operator==(Replace const &other) const {
-  return this->identifier == other.identifier &&
-         *(this->original) == *(other.original) &&
-         *(this->replacement) == *(other.replacement);
+  return this->input == other.input &&
+         *(this->filter) == *(other.filter) &&
+         *(this->product) == *(other.product);
 }
 bool List::operator==(List const &other) const {
   return this->contents == other.contents;
@@ -204,33 +204,33 @@ std::optional<ASTObject> Parser::parse_list() {
 
 // recursive descent parser, see grammar.
 std::optional<ASTObject> Parser::parse_replace() {
-  std::optional<ASTObject> identifier = parse_primary();
+  std::optional<ASTObject> input = parse_primary();
   std::optional<Token> token_modify;
   if (!(token_modify = consume_if(TokenType::Modify)))
-    return identifier; // not a replace.
+    return input; // not a replace.
 
-  if (!identifier)
+  if (!input)
     ErrorHandler::halt(ENoReplacementIdentifier{token_modify->reference});
-  StreamReference ref_initial = std::visit(ASTVisitReference{}, *identifier);
+  StreamReference ref_initial = std::visit(ASTVisitReference{}, *input);
 
-  std::optional<ASTObject> original = parse_primary();
-  if (!original)
+  std::optional<ASTObject> filter = parse_primary();
+  if (!filter)
     ErrorHandler::halt(ENoReplacementOriginal{token_modify->reference});
 
   std::optional<Token> token_arrow;
   if (!(token_arrow = consume_if(TokenType::Arrow)))
     ErrorHandler::halt(
-        ENoReplacementArrow{std::visit(ASTVisitReference{}, *original)});
+        ENoReplacementArrow{std::visit(ASTVisitReference{}, *filter)});
 
-  std::optional<ASTObject> replacement = parse_primary();
-  if (!replacement)
+  std::optional<ASTObject> product = parse_primary();
+  if (!product)
     ErrorHandler::halt(ENoReplacementReplacement{token_arrow->reference});
-  StreamReference ref_final = std::visit(ASTVisitReference{}, *replacement);
+  StreamReference ref_final = std::visit(ASTVisitReference{}, *product);
 
   return Replace{
-      std::make_shared<ASTObject>(*identifier),
-      std::make_shared<ASTObject>(*original),
-      std::make_shared<ASTObject>(*replacement),
+      std::make_shared<ASTObject>(*input),
+      std::make_shared<ASTObject>(*filter),
+      std::make_shared<ASTObject>(*product),
       Tracking::sum_references(ref_initial, ref_final),
   };
 }
