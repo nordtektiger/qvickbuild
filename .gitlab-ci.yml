@@ -7,14 +7,14 @@ build:
   image: archlinux:base-devel
   script:
     - make clean
-    - make
+    - make -j $(nproc)
   artifacts:
     paths:
       - bin/quickbuild
 
 test:
   stage: test
-  image: silkeh/clang
+  image: archlinux:base-devel
   script:
     - ./bin/quickbuild
     - ./bin/quickbuild --configfile tests/test1
