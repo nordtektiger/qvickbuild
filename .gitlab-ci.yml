@@ -4,7 +4,7 @@ stages:
 
 build:
   stage: build
-  image: gcc
+  image: silkeh/clang
   script:
     - make clean
     - make
@@ -14,7 +14,7 @@ build:
 
 test:
   stage: test
-  image: gcc
+  image: silkeh/clang
   script:
     - ./bin/quickbuild
     - ./bin/quickbuild --configfile tests/test1
