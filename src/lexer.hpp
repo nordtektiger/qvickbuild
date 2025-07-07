@@ -98,6 +98,10 @@ private:
   std::vector<std::function<std::optional<Token>(void)>> matching_rules{
       LAMBDA_DECLARE_ALL};
 
+  std::optional<std::vector<Token>> parse_escaped_literal();
+  std::optional<unsigned char> parse_escaped_symbol();
+
+
 public:
   Lexer(std::vector<unsigned char> input_bytes);
   std::vector<Token> get_token_stream();

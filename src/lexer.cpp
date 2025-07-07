@@ -1,12 +1,12 @@
-#include "tracking.hpp"
 #include "lexer.hpp"
 #include "errors.hpp"
+#include "tracking.hpp"
 #include <format>
 #include <functional>
 #include <variant>
 
 // used for determining e.g. variable names.
-inline bool is_alphabetic(char x) {
+inline bool is_alphanumeric(char x) {
   return ((x >= 'A') && (x <= 'Z')) || ((x >= 'a') && (x <= 'z')) || x == '_' ||
          x == '-' || (x >= '0' && x <= '9');
 }
@@ -22,10 +22,11 @@ Lexer::Lexer(std::vector<unsigned char> input_bytes) {
 unsigned char Lexer::consume_byte() { return consume_byte(1); }
 
 unsigned char Lexer::consume_byte(int n) {
+  unsigned char consumed_token = m_current;
   m_index += n;
   m_current = (m_input.size() >= m_index + 1) ? m_input[m_index] : '\0';
   m_next = (m_input.size() >= m_index + 2) ? m_input[m_index + 1] : '\0';
-  return m_current;
+  return consumed_token;
 }
 
 // gets next token from stream.
@@ -137,6 +138,84 @@ std::optional<Token> Lexer::match_taskclose() {
   return Token{TokenType::TaskClose, std::nullopt, {m_index - 1, 1}};
 }
 
+std::optional<std::vector<Token>> Lexer::parse_escaped_literal() {
+  if (m_current != '[')
+    return std::nullopt;
+  std::vector<Token> internal_stream;
+  consume_byte(); // consume the `[`.
+  // lex escaped expression.
+  while (m_current != ']') {
+
+    std::optional<Token> inner_token;
+    skip_whitespace_comments();
+    // note: the parser only supports escaped identifiers.
+    if ((inner_token = match_modify())) {
+    } else if ((inner_token = match_arrow())) {
+    } else if ((inner_token = match_separator())) {
+    } else if ((inner_token = match_identifier())) {
+    }
+
+    if (!inner_token)
+      ErrorHandler::halt(EInvalidLiteral{{m_index, 1}});
+
+    internal_stream.push_back(*inner_token);
+  }
+  consume_byte(); // consume the `]`
+  return internal_stream;
+}
+
+std::optional<unsigned char> Lexer::parse_escaped_symbol() {
+  if (m_current != '\\')
+    return std::nullopt;
+  if (!m_next)
+    return std::nullopt; // force caller to deal with this
+  consume_byte(); // consume the `\`
+  unsigned char code = consume_byte();
+  // escaped sequences match those required by the c standard, with the
+  // exception of \e (omitted), \[ (included), \] (included)
+  switch (code) {
+  case 'a': {
+    return '\a';
+  }
+  case 'b': {
+    return '\b';
+  }
+  case 'f': {
+    return '\f';
+  }
+  case 'n': {
+    return '\n';
+  }
+  case 'r': {
+    return '\r';
+  }
+  case 't': {
+    return '\t';
+  }
+  case 'v': {
+    return '\v';
+  }
+  case '\\': {
+    return '\\';
+  }
+  case '\'': {
+    return '\'';
+  }
+  case '\"': {
+    return '\"';
+  }
+  case '[': {
+    return '[';
+  }
+  case ']': {
+    return ']';
+  }
+  default: {
+    ErrorHandler::halt(EInvalidEscapeCode{code, {m_index - 1, 1}});
+  }
+  }
+}
+
 // match literals
 std::optional<Token> Lexer::match_literal() {
   if (m_current != '\"')
@@ -147,34 +226,23 @@ std::optional<Token> Lexer::match_literal() {
   std::vector<Token> internal_stream;
   std::string substr;
   while (m_current != '\"') {
-    if (m_current == '[') {
+    std::optional<std::vector<Token>> escaped_expression =
+        parse_escaped_literal();
+    std::optional<unsigned char> escaped_symbol = parse_escaped_symbol();
+    if (escaped_symbol) {
+      substr += *escaped_symbol;
+      continue;
+    }
+    if (escaped_expression) {
       internal_stream.push_back(
           Token{TokenType::Literal,
                 substr,
                 {m_index - substr.size(), substr.size()}});
-      consume_byte(); // consume the `[`.
       substr = "";
-      // lex escaped expression.
-      while (m_current != ']') {
-
-        std::optional<Token> inner_token;
-        skip_whitespace_comments();
-        // note: the parser only supports escaped identifiers.
-        if ((inner_token = match_modify())) {
-        } else if ((inner_token = match_arrow())) {
-        } else if ((inner_token = match_separator())) {
-        } else if ((inner_token = match_identifier())) {
-        }
-
-        if (!inner_token)
-          ErrorHandler::halt(EInvalidLiteral{{m_index, 1}});
-
-        internal_stream.push_back(*inner_token);
-      }
-      consume_byte(); // consume the `]`
+      internal_stream.insert(internal_stream.end(), escaped_expression->begin(),
+                             escaped_expression->end());
       continue;
     }
-
     // lex "pure" literal:
     substr += m_current;
     consume_byte();
@@ -191,10 +259,10 @@ std::optional<Token> Lexer::match_literal() {
 
 // match identifiers
 std::optional<Token> Lexer::match_identifier() {
-  if (!is_alphabetic(m_current))
+  if (!is_alphanumeric(m_current))
     return std::nullopt;
   std::string identifier;
-  while (is_alphabetic(m_current)) {
+  while (is_alphanumeric(m_current)) {
     identifier += m_current;
     consume_byte();
   }

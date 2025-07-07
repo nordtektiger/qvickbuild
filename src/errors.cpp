@@ -702,15 +702,36 @@ std::string EEmptyExpression::render_error(std::vector<unsigned char> config) {
 
 char const *EEmptyExpression::get_exception_msg() { return "Empty expression"; }
 
-EInvalidInputFile::EInvalidInputFile(std::string path) {
-  this->path = path;
-}
+EInvalidInputFile::EInvalidInputFile(std::string path) { this->path = path; }
 
 std::string EInvalidInputFile::render_error(std::vector<unsigned char>) {
-  return std::format("{}{}error:{}{} config file '{}' is unreachable.{}", RED, BOLD, RESET, BOLD, path, RESET);
+  return std::format("{}{}error:{}{} config file '{}' is unreachable.{}", RED,
+                     BOLD, RESET, BOLD, path, RESET);
 }
 
-char const *EInvalidInputFile::get_exception_msg() { return "Invalid input file"; }
+char const *EInvalidInputFile::get_exception_msg() {
+  return "Invalid input file";
+}
+
+EInvalidEscapeCode::EInvalidEscapeCode(unsigned char code,
+                                       StreamReference reference) {
+  this->code = code;
+  this->reference = reference;
+}
+
+std::string
+EInvalidEscapeCode::render_error(std::vector<unsigned char> config) {
+  ReferenceView code_view =
+      ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(code_view, "escape code here");
+  return std::format(
+      "{}{}error:{}{} escape code '\\{}' on line {} is invalid.\n{}{}", RED,
+      BOLD, RESET, BOLD, std::string(1, code), code_view.line_num, RESET, rendered_view);
+}
+
+char const *EInvalidEscapeCode::get_exception_msg() {
+  return "Invalid escape code";
+}
 
 std::unordered_map<size_t, std::shared_ptr<BuildError>>
     ErrorHandler::error_state = {};
@@ -780,6 +801,7 @@ template void ErrorHandler::halt<ETaskNotFound>(ETaskNotFound);
 template void ErrorHandler::halt<EAmbiguousTask>(EAmbiguousTask);
 template void ErrorHandler::halt<ENonZeroProcess>(ENonZeroProcess);
 template void ErrorHandler::halt<EInvalidInputFile>(EInvalidInputFile);
+template void ErrorHandler::halt<EInvalidEscapeCode>(EInvalidEscapeCode);
 template void
     ErrorHandler::soft_report<ENoMatchingIdentifier>(ENoMatchingIdentifier);
 template void ErrorHandler::soft_report<EInvalidSymbol>(EInvalidSymbol);
@@ -816,6 +838,7 @@ template void ErrorHandler::soft_report<ETaskNotFound>(ETaskNotFound);
 template void ErrorHandler::soft_report<EAmbiguousTask>(EAmbiguousTask);
 template void ErrorHandler::soft_report<ENonZeroProcess>(ENonZeroProcess);
 template void ErrorHandler::soft_report<EInvalidInputFile>(EInvalidInputFile);
+template void ErrorHandler::soft_report<EInvalidEscapeCode>(EInvalidEscapeCode);
 template FrameGuard::FrameGuard(IdentifierEvaluateFrame);
 template FrameGuard::FrameGuard(EntryBuildFrame);
 template FrameGuard::FrameGuard(DependencyBuildFrame);

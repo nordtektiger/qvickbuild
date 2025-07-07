@@ -5,8 +5,8 @@ struct ReferenceView;
 class BuildError;
 
 #include "interpreter.hpp"
-#include "oslayer.hpp"
 #include "lexer.hpp"
+#include "oslayer.hpp"
 #include "parser.hpp"
 #include "tracking.hpp"
 #include <map>
@@ -362,6 +362,18 @@ public:
   char const *get_exception_msg() override;
   EInvalidInputFile() = delete;
   EInvalidInputFile(std::string);
+};
+
+class EInvalidEscapeCode : public BuildError {
+private:
+  unsigned char code;
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  EInvalidEscapeCode() = delete;
+  EInvalidEscapeCode(unsigned char, StreamReference);
 };
 
 // api-facing error handler.

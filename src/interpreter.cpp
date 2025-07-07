@@ -419,12 +419,10 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
         // match exact characters
         std::string match_criteria = std::get<std::string>(str_component);
         if (match_criteria.size() > istring.content.size()) {
-          std::cerr << "false 1" << std::endl;
           elem_match = false;
           break;
         } else if (match_criteria !=
                    istring.content.substr(i, match_criteria.size())) {
-          std::cerr << "false 2" << std::endl;
           elem_match = false;
           break;
         }
@@ -448,7 +446,6 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
           }
         }
         if (!seg_match) {
-          std::cerr << "false 3" << std::endl;
           elem_match = false;
           break;
         } else {
