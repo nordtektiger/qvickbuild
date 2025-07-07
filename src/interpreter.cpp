@@ -429,8 +429,12 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
         i += match_criteria.size();
       } else {
         // wildcard
-        if (i_comp >= filter_parsed.size() - 1) // final asterisk
+        if (i_comp >= filter_parsed.size() - 1) {
+          // final asterisk: don't forget to save it as a reconstruciton group.
+          reconstruction_vector.push_back(
+              istring.content.substr(i, istring.content.size() - i));
           break;
+        }
         bool seg_match = false;
         std::string match_criteria =
             std::get<std::string>(filter_parsed[i_comp + 1]);
