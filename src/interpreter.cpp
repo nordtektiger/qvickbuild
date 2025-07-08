@@ -107,6 +107,13 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
   FrameGuard frame(
       IdentifierEvaluateFrame(identifier.content, identifier.reference));
 
+  // any identifier will *always* have globbing enabled. if a replacement
+  // operator attempts to evaluate an ast object, it will override the globbing
+  // to false, but if the value it's referencing is behind another variable
+  // initialization, globbing should be enabled to avoid unintuitive errors.
+  EvaluationContext id_context = {context.task_scope, context.task_iteration,
+                                  true};
+
   // check for any cached values.
   for (ValueInstance value : state->values) {
     if (value.identifier == identifier &&
@@ -119,10 +126,10 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
   if (context.task_scope) {
     for (Field const &field : context.task_scope->fields) {
       if (field.identifier.content == identifier.content) {
-        ASTEvaluate ast_visitor = {ast, context, state};
+        ASTEvaluate ast_visitor = {ast, id_context, state};
         IValue result = std::visit(ast_visitor, field.expression);
         if (result.immutable)
-          state->values.push_back(ValueInstance{identifier, context, result});
+          state->values.push_back(ValueInstance{identifier, id_context, result});
         return result;
       }
     }
@@ -140,8 +147,9 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
       ASTEvaluate ast_visitor = {
           ast, EvaluationContext{std::nullopt, std::nullopt}, state};
       IValue result = std::visit(ast_visitor, field.expression);
+      // allow globbing: see comment above.
       EvaluationContext _context =
-          EvaluationContext{std::nullopt, std::nullopt, context.use_globbing};
+          EvaluationContext{std::nullopt, std::nullopt, true};
       if (result.immutable)
         state->values.push_back(ValueInstance{identifier, _context, result});
       return result;
@@ -544,7 +552,8 @@ Interpreter::evaluate_field_optional(std::string identifier,
 }
 
 void Interpreter::t_run_task(Task task, std::string task_iteration,
-                             std::shared_ptr<std::atomic<bool>> error, std::vector<std::shared_ptr<Frame>> local_stack) {
+                             std::shared_ptr<std::atomic<bool>> error,
+                             std::vector<std::shared_ptr<Frame>> local_stack) {
   try {
     ContextStack::import_local_stack(local_stack);
     FrameGuard frame{DependencyBuildFrame(task_iteration, task.reference)};
@@ -601,7 +610,8 @@ Interpreter::_solve_dependencies_parallel(IValue dependencies) {
       continue;
     }
     pool.push_back(std::thread(&Interpreter::t_run_task, this, *_task,
-                               task_iteration.toString(), error, ContextStack::export_local_stack()));
+                               task_iteration.toString(), error,
+                               ContextStack::export_local_stack()));
   }
 
   for (std::thread &thread : pool) {
@@ -723,7 +733,8 @@ int Interpreter::run_task(Task task, std::string task_iteration) {
 
   // execute task.
   LOG_STANDARD(CYAN << "»" << RESET << " starting " << task_iteration);
-  if (std::holds_alternative<IString>(command_expr->value) && !m_setup.dry_run) {
+  if (std::holds_alternative<IString>(command_expr->value) &&
+      !m_setup.dry_run) {
     // single command
     IString cmdline = std::get<IString>(command_expr->value);
     OSLayer os_layer(std::get<IBool>(run_parallel.value), false);
