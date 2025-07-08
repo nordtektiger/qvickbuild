@@ -722,7 +722,7 @@ int Interpreter::run_task(Task task, std::string task_iteration) {
 
   // execute task.
   LOG_STANDARD(CYAN << "»" << RESET << " starting " << task_iteration);
-  if (std::holds_alternative<IString>(command_expr->value)) {
+  if (std::holds_alternative<IString>(command_expr->value) && !m_setup.dry_run) {
     // single command
     IString cmdline = std::get<IString>(command_expr->value);
     OSLayer os_layer(std::get<IBool>(run_parallel.value), false);
