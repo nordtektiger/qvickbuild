@@ -532,7 +532,6 @@ Interpreter::evaluate_field_default(std::string identifier,
   }
   return evaluate_ast_object(field->expression, m_ast, context, state);
 }
-guh
 
 std::optional<IValue>
 Interpreter::evaluate_field_optional(std::string identifier,
