@@ -519,11 +519,10 @@ std::optional<Field> Interpreter::find_field(std::string identifier,
         return field;
 
   // global fields.
-  for (Field const &field : m_ast.fields) {
-    if (field.identifier.content == identifier) {
+  for (Field const &field : m_ast.fields)
+    if (field.identifier.content == identifier)
       return field;
-    }
-  }
+
   return std::nullopt;
 }
 

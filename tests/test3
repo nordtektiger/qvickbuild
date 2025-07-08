@@ -1,0 +1,7 @@
+# --- tests asterisk behaviour when used in both initialization and replace
+"verify" {
+  var1 = "./tests/*1";
+  test = ["./tests/test1", "./tests/fault1"]: var1 -> "success";
+  ans = "success ./tests/fault1";
+  run = "if \[ '[test]' = '[ans]' \]; then exit 0; else exit -1; fi";
+}

@@ -18,5 +18,7 @@ test:
   script:
     - ./bin/quickbuild
     - ./bin/quickbuild --configfile tests/test1
+    - ./bin/quickbuild --configfile tests/test2
+    - ./bin/quickbuild --configfile tests/test3
   dependencies:
     - build
