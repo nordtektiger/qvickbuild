@@ -3,6 +3,7 @@
 
 struct ReferenceView;
 class BuildError;
+class Frame;
 
 #include "interpreter.hpp"
 #include "lexer.hpp"
@@ -447,13 +448,16 @@ class ContextStack {
 
 private:
   // thread hash, frames
-  static std::unordered_map<size_t, std::vector<std::unique_ptr<Frame>>> stack;
+  static std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>> stack;
   static std::mutex stack_lock;
   static bool frozen;
 
 public:
-  static std::unordered_map<size_t, std::vector<std::unique_ptr<Frame>>>
+  static std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>>
   dump_stack();
+  static std::vector<std::shared_ptr<Frame>> export_local_stack();
+  static void import_local_stack(std::vector<std::shared_ptr<Frame>>);
+
   static void freeze();
   static bool is_frozen();
 };

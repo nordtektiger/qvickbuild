@@ -11,23 +11,36 @@
 #include <thread>
 #include <variant>
 
-std::unordered_map<size_t, std::vector<std::unique_ptr<Frame>>>
+std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>>
     ContextStack::stack = {};
 std::mutex ContextStack::stack_lock;
 bool ContextStack::frozen = false;
 
 void ContextStack::freeze() { ContextStack::frozen = true; }
 bool ContextStack::is_frozen() { return ContextStack::frozen; }
-std::unordered_map<size_t, std::vector<std::unique_ptr<Frame>>>
+std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>>
 ContextStack::dump_stack() {
-  return std::move(stack);
+  return stack;
+}
+std::vector<std::shared_ptr<Frame>> ContextStack::export_local_stack() {
+  std::thread::id thread_id = std::this_thread::get_id();
+  size_t thread_hash = std::hash<std::thread::id>{}(thread_id);
+  std::unique_lock<std::mutex> guard(ContextStack::stack_lock);
+  return ContextStack::stack[thread_hash];
+}
+void ContextStack::import_local_stack(
+    std::vector<std::shared_ptr<Frame>> local_stack) {
+  std::thread::id thread_id = std::this_thread::get_id();
+  size_t thread_hash = std::hash<std::thread::id>{}(thread_id);
+  std::unique_lock<std::mutex> guard(ContextStack::stack_lock);
+  ContextStack::stack[thread_hash] = local_stack;
 }
 
 // frameguard implementation.
 template <typename F> FrameGuard::FrameGuard(F frame) {
   if (ContextStack::is_frozen())
     return;
-  std::unique_ptr<F> frame_ptr = std::make_unique<F>(frame);
+  std::shared_ptr<F> frame_ptr = std::make_shared<F>(frame);
   std::thread::id thread_id = std::this_thread::get_id();
   thread_hash = std::hash<std::thread::id>{}(thread_id);
   std::unique_lock<std::mutex> guard(ContextStack::stack_lock);
@@ -723,10 +736,12 @@ std::string
 EInvalidEscapeCode::render_error(std::vector<unsigned char> config) {
   ReferenceView code_view =
       ErrorRenderer::get_reference_view(config, reference);
-  std::string rendered_view = ErrorRenderer::get_rendered_view(code_view, "escape code here");
+  std::string rendered_view =
+      ErrorRenderer::get_rendered_view(code_view, "escape code here");
   return std::format(
       "{}{}error:{}{} escape code '\\{}' on line {} is invalid.\n{}{}", RED,
-      BOLD, RESET, BOLD, std::string(1, code), code_view.line_num, RESET, rendered_view);
+      BOLD, RESET, BOLD, std::string(1, code), code_view.line_num, RESET,
+      rendered_view);
 }
 
 char const *EInvalidEscapeCode::get_exception_msg() {

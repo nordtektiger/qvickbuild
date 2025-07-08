@@ -44,7 +44,7 @@ std::vector<unsigned char> Driver::get_config() {
 
 void Driver::unwind_errors(std::vector<unsigned char> config) {
   bool verbose_threads = ErrorHandler::get_errors().size() > 1;
-  std::unordered_map<size_t, std::vector<std::unique_ptr<Frame>>> frames =
+  std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>> frames =
       ContextStack::dump_stack();
   for (auto [thread_hash, build_error] : ErrorHandler::get_errors()) {
     // display error.
@@ -58,7 +58,7 @@ void Driver::unwind_errors(std::vector<unsigned char> config) {
     if (!frames[thread_hash].empty())
       LOG_STANDARD(RED << "│" << RESET);
     // display context stack.
-    for (std::unique_ptr<Frame> const &frame : frames[thread_hash]) {
+    for (std::shared_ptr<Frame> const &frame : frames[thread_hash]) {
       LOG_STANDARD(std::format("{}│{}  {}note:{} while {}", RED, RESET, GREY,
                                RESET, frame->render_frame(config)));
     }

@@ -532,6 +532,7 @@ Interpreter::evaluate_field_default(std::string identifier,
   }
   return evaluate_ast_object(field->expression, m_ast, context, state);
 }
+guh
 
 std::optional<IValue>
 Interpreter::evaluate_field_optional(std::string identifier,
@@ -544,8 +545,9 @@ Interpreter::evaluate_field_optional(std::string identifier,
 }
 
 void Interpreter::t_run_task(Task task, std::string task_iteration,
-                             std::shared_ptr<std::atomic<bool>> error) {
+                             std::shared_ptr<std::atomic<bool>> error, std::vector<std::shared_ptr<Frame>> local_stack) {
   try {
+    ContextStack::import_local_stack(local_stack);
     FrameGuard frame{DependencyBuildFrame(task_iteration, task.reference)};
     if (0 > run_task(task, task_iteration))
       *error = true;
@@ -600,7 +602,7 @@ Interpreter::_solve_dependencies_parallel(IValue dependencies) {
       continue;
     }
     pool.push_back(std::thread(&Interpreter::t_run_task, this, *_task,
-                               task_iteration.toString(), error));
+                               task_iteration.toString(), error, ContextStack::export_local_stack()));
   }
 
   for (std::thread &thread : pool) {
