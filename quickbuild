@@ -74,3 +74,8 @@ objects_release as obj {
         "rm --force --recursive bin";
 }
 
+# finds and executes all present test files using the local binary.
+tests = "./tests/*";
+"test" {
+  run = tests: "*" -> "./bin/quickbuild --configfile *";
+}

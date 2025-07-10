@@ -748,6 +748,24 @@ char const *EInvalidEscapeCode::get_exception_msg() {
   return "Invalid escape code";
 }
 
+EAdjacentWildcards::EAdjacentWildcards(IString istring) : istring(istring) {}
+
+std::string
+EAdjacentWildcards::render_error(std::vector<unsigned char> config) {
+  ReferenceView str_view =
+      ErrorRenderer::get_reference_view(config, istring.reference);
+  std::string rendered_view =
+      ErrorRenderer::get_rendered_view(str_view, "string initialized here");
+  return std::format("{}{}error:{}{} string '{}' declared on line {} contains "
+                     "two or more adjacent wildcards.\n{}{}",
+                     RED, BOLD, RESET, BOLD, istring.content, str_view.line_num,
+                     RESET, rendered_view);
+}
+
+char const *EAdjacentWildcards::get_exception_msg() {
+  return "Adjacent wildcards";
+}
+
 std::unordered_map<size_t, std::shared_ptr<BuildError>>
     ErrorHandler::error_state = {};
 std::mutex ErrorHandler::error_lock;
@@ -817,6 +835,7 @@ template void ErrorHandler::halt<EAmbiguousTask>(EAmbiguousTask);
 template void ErrorHandler::halt<ENonZeroProcess>(ENonZeroProcess);
 template void ErrorHandler::halt<EInvalidInputFile>(EInvalidInputFile);
 template void ErrorHandler::halt<EInvalidEscapeCode>(EInvalidEscapeCode);
+template void ErrorHandler::halt<EAdjacentWildcards>(EAdjacentWildcards);
 template void
     ErrorHandler::soft_report<ENoMatchingIdentifier>(ENoMatchingIdentifier);
 template void ErrorHandler::soft_report<EInvalidSymbol>(EInvalidSymbol);
@@ -854,6 +873,7 @@ template void ErrorHandler::soft_report<EAmbiguousTask>(EAmbiguousTask);
 template void ErrorHandler::soft_report<ENonZeroProcess>(ENonZeroProcess);
 template void ErrorHandler::soft_report<EInvalidInputFile>(EInvalidInputFile);
 template void ErrorHandler::soft_report<EInvalidEscapeCode>(EInvalidEscapeCode);
+template void ErrorHandler::soft_report<EAdjacentWildcards>(EAdjacentWildcards);
 template FrameGuard::FrameGuard(IdentifierEvaluateFrame);
 template FrameGuard::FrameGuard(EntryBuildFrame);
 template FrameGuard::FrameGuard(DependencyBuildFrame);

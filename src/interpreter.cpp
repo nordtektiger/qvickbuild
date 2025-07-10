@@ -4,6 +4,7 @@
 #include "format.hpp"
 #include "oslayer.hpp"
 #include "tracking.hpp"
+#include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <filesystem>
@@ -80,6 +81,10 @@ bool EvaluationContext::context_verify(EvaluationContext const other) const {
   return false;
 }
 
+// used in matching algorithms.
+struct Wildcard {};
+using StringComponent = std::variant<Wildcard, std::string>;
+
 // visitor that evaluates an AST object recursively.
 struct ASTEvaluate {
   AST &ast;
@@ -129,7 +134,8 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
         ASTEvaluate ast_visitor = {ast, id_context, state};
         IValue result = std::visit(ast_visitor, field.expression);
         if (result.immutable)
-          state->values.push_back(ValueInstance{identifier, id_context, result});
+          state->values.push_back(
+              ValueInstance{identifier, id_context, result});
         return result;
       }
     }
@@ -170,25 +176,79 @@ IValue expand_literal(IString input_istring, bool immutable) {
   if (i_asterisk == std::string::npos) // no globbing.
     return {input_istring};
 
-  // globbing is required.
-  std::string prefix = input_istring.content.substr(0, i_asterisk);
-  std::string suffix = input_istring.content.substr(i_asterisk + 1);
+  // globbing is required - start by preprocessing filter string to simplify the
+  // matching algorithm.
+  std::vector<StringComponent> filter_parsed;
+  std::string filter_str = input_istring.content;
+  std::string str_buf;
+  for (size_t i = 0; i < filter_str.size(); i++) {
+    if (filter_str[i] == '*') {
+      if (!str_buf.empty()) {
+        filter_parsed.push_back(str_buf);
+        str_buf = "";
+      }
+      filter_parsed.push_back(Wildcard{});
+    } else
+      str_buf += filter_str[i];
+  }
+  if (!str_buf.empty()) {
+    filter_parsed.push_back(str_buf);
+    str_buf = "";
+  }
 
-  // acts as a string vector.
+  // matching paths, acts as a string vector.
   std::vector<IString> contents;
 
   for (std::filesystem::directory_entry const &dir_entry :
        std::filesystem::recursive_directory_iterator(".")) {
     std::string dir_path = dir_entry.path().string();
-    size_t i_prefix = dir_path.find(prefix);
-    size_t i_suffix = dir_path.find(suffix);
-    if (prefix.empty() && i_suffix != std::string::npos)
-      contents.push_back(IString(dir_path, input_istring.reference));
-    else if (suffix.empty() && i_prefix != std::string::npos)
-      contents.push_back(IString(dir_path, input_istring.reference));
-    else if (!prefix.empty() && !suffix.empty() &&
-             i_prefix != std::string::npos && i_suffix != std::string::npos &&
-             i_prefix < i_suffix)
+    size_t i = 0;
+    bool elem_match = true;
+    std::vector<std::string> reconstruction_vector;
+    for (size_t i_comp = 0; i_comp < filter_parsed.size(); i_comp++) {
+      StringComponent const &str_component = filter_parsed[i_comp];
+      if (std::holds_alternative<std::string>(str_component)) {
+        // match exact characters
+        std::string match_criteria = std::get<std::string>(str_component);
+        if (match_criteria.size() > dir_path.size()) {
+          elem_match = false;
+          break;
+        } else if (match_criteria !=
+                   dir_path.substr(i, match_criteria.size())) {
+          elem_match = false;
+          break;
+        }
+        i += match_criteria.size();
+      } else {
+        // wildcard
+        if (i_comp >= filter_parsed.size() - 1) {
+          // final asterisk
+          break;
+        }
+        if (std::holds_alternative<Wildcard>(filter_parsed[i_comp + 1]))
+          ErrorHandler::halt(EAdjacentWildcards{input_istring});
+        bool seg_match = false;
+        std::string match_criteria =
+            std::get<std::string>(filter_parsed[i_comp + 1]);
+        for (size_t i_seg = 0;
+             i_seg < dir_path.size() - i - match_criteria.size() + 1; i_seg++) {
+          if (dir_path.substr(i + i_seg, match_criteria.size()) ==
+              match_criteria) {
+            seg_match = true;
+            i += i_seg + match_criteria.size();
+            break;
+          }
+        }
+        if (!seg_match) {
+          elem_match = false;
+          break;
+        } else {
+          // increment this twice because two components have been matched.
+          i_comp++;
+        }
+      }
+    }
+    if (elem_match)
       contents.push_back(IString(dir_path, input_istring.reference));
   }
 
@@ -342,9 +402,6 @@ IValue ASTEvaluate::operator()(Boolean const &boolean) {
   return {IBool(boolean.content, boolean.reference)};
 }
 
-struct Wildcard {};
-using StringComponent = std::variant<Wildcard, std::string>;
-
 IValue ASTEvaluate::operator()(Replace const &replace) {
   // override use_globbing to false since the wildcards need to be handled here.
   EvaluationContext _context =
@@ -413,7 +470,15 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
     str_buf = "";
   }
 
-  if (product_parsed.size() > filter_parsed.size())
+  size_t wildcards_product = std::count_if(
+      product_parsed.begin(), product_parsed.end(),
+      [](StringComponent s) { return std::holds_alternative<Wildcard>(s); });
+
+  size_t wildcards_filter = std::count_if(
+      filter_parsed.begin(), filter_parsed.end(),
+      [](StringComponent s) { return std::holds_alternative<Wildcard>(s); });
+
+  if (wildcards_product > wildcards_filter)
     ErrorHandler::halt(EReplaceChunksLength{product});
 
   // matching algorithm: traverse filter vector
@@ -443,6 +508,8 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
               istring.content.substr(i, istring.content.size() - i));
           break;
         }
+        if (std::holds_alternative<Wildcard>(filter_parsed[i_comp + 1]))
+          ErrorHandler::halt(EAdjacentWildcards{istring});
         bool seg_match = false;
         std::string match_criteria =
             std::get<std::string>(filter_parsed[i_comp + 1]);
@@ -768,6 +835,7 @@ int Interpreter::run_task(Task task, std::string task_iteration) {
   return 0;
 }
 
+// todo: why is this an int...?
 int Interpreter::build() {
 
   this->state = std::make_shared<EvaluationState>();

@@ -377,6 +377,17 @@ public:
   EInvalidEscapeCode(unsigned char, StreamReference);
 };
 
+class EAdjacentWildcards : public BuildError {
+private:
+  IString istring;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  EAdjacentWildcards() = delete;
+  EAdjacentWildcards(IString);
+};
+
 // api-facing error handler.
 class ErrorHandler {
 private:
