@@ -3,6 +3,7 @@
 #include "filesystem"
 #include "format.hpp"
 #include "oslayer.hpp"
+#include "static_verify.hpp"
 #include "tracking.hpp"
 #include <algorithm>
 #include <atomic>
@@ -111,6 +112,12 @@ Interpreter::evaluate_ast_object(ASTObject ast_object, AST &ast,
 IValue ASTEvaluate::operator()(Identifier const &identifier) {
   FrameGuard frame(
       IdentifierEvaluateFrame(identifier.content, identifier.reference));
+
+  // check whether we're shooting ourselves and the stack in the foot.
+  bool recursive = StaticVerify::find_recursive_variable(
+      ContextStack::export_local_stack(), identifier.content);
+  if (recursive)
+    ErrorHandler::halt(ERecursiveVariable{identifier});
 
   // any identifier will *always* have globbing enabled. if a replacement
   // operator attempts to evaluate an ast object, it will override the globbing
@@ -734,6 +741,12 @@ DependencyStatus Interpreter::solve_dependencies(IValue dependencies,
 }
 
 void Interpreter::run_task(Task task, std::string task_iteration) {
+  // check for recursive dependencies.
+  bool recursive = StaticVerify::find_recursive_task(
+      ContextStack::export_local_stack(), task_iteration);
+  if (recursive)
+    ErrorHandler::halt(ERecursiveTask{task, task_iteration});
+
   // solve dependencies.
   std::optional<IValue> dependencies =
       evaluate_field_optional(DEPENDS, {task, task_iteration}, this->state);

@@ -70,6 +70,8 @@ EntryBuildFrame::EntryBuildFrame(std::string task, StreamReference reference) {
   this->reference = reference;
 }
 
+std::string EntryBuildFrame::get_unique_identifier() { return task; }
+
 std::string
 DependencyBuildFrame::render_frame(std::vector<unsigned char> config) {
   ReferenceView task_view =
@@ -84,6 +86,8 @@ DependencyBuildFrame::DependencyBuildFrame(std::string task,
   this->reference = reference;
 }
 
+std::string DependencyBuildFrame::get_unique_identifier() { return task; }
+
 std::string
 IdentifierEvaluateFrame::render_frame(std::vector<unsigned char> config) {
   ReferenceView identifier_view =
@@ -95,6 +99,10 @@ IdentifierEvaluateFrame::IdentifierEvaluateFrame(std::string identifier,
                                                  StreamReference reference) {
   this->identifier = identifier;
   this->reference = reference;
+}
+
+std::string IdentifierEvaluateFrame::get_unique_identifier() {
+  return identifier;
 }
 
 // internal standardized methods.
@@ -766,6 +774,47 @@ char const *EAdjacentWildcards::get_exception_msg() {
   return "Adjacent wildcards";
 }
 
+ERecursiveVariable::ERecursiveVariable(Identifier identifier) {
+  this->identifier = identifier;
+}
+
+std::string
+ERecursiveVariable::render_error(std::vector<unsigned char> config) {
+  ReferenceView var_view =
+      ErrorRenderer::get_reference_view(config, identifier.reference);
+  std::string rendered_view =
+      ErrorRenderer::get_rendered_view(var_view, "recursive reference here");
+  return std::format(
+      "{}{}error:{}{} variable '{}' referred to on line {} contains "
+      "a recursive reference and cannot be initialized.\n{}{}",
+      RED, BOLD, RESET, BOLD, identifier.content, var_view.line_num, RESET,
+      rendered_view);
+}
+
+char const *ERecursiveVariable::get_exception_msg() {
+  return "Recursive variable initialized";
+}
+
+ERecursiveTask::ERecursiveTask(Task task, std::string dependency_value) {
+  this->task = task;
+  this->dependency_value = dependency_value;
+}
+
+std::string ERecursiveTask::render_error(std::vector<unsigned char> config) {
+  ReferenceView task_view =
+      ErrorRenderer::get_reference_view(config, task.reference);
+  std::string rendered_view =
+      ErrorRenderer::get_rendered_view(task_view, "task declared here");
+  return std::format("{}{}error:{}{} task '{}' declared on line {} contains "
+                     "a recursive dependency and cannot be built.\n{}{}",
+                     RED, BOLD, RESET, BOLD, dependency_value,
+                     task_view.line_num, RESET, rendered_view);
+}
+
+char const *ERecursiveTask::get_exception_msg() {
+  return "Recursive task built";
+}
+
 std::unordered_map<size_t, std::shared_ptr<BuildError>>
     ErrorHandler::error_state = {};
 std::mutex ErrorHandler::error_lock;
@@ -836,6 +885,8 @@ template void ErrorHandler::halt<ENonZeroProcess>(ENonZeroProcess);
 template void ErrorHandler::halt<EInvalidInputFile>(EInvalidInputFile);
 template void ErrorHandler::halt<EInvalidEscapeCode>(EInvalidEscapeCode);
 template void ErrorHandler::halt<EAdjacentWildcards>(EAdjacentWildcards);
+template void ErrorHandler::halt<ERecursiveVariable>(ERecursiveVariable);
+template void ErrorHandler::halt<ERecursiveTask>(ERecursiveTask);
 template void
     ErrorHandler::soft_report<ENoMatchingIdentifier>(ENoMatchingIdentifier);
 template void ErrorHandler::soft_report<EInvalidSymbol>(EInvalidSymbol);
@@ -874,6 +925,8 @@ template void ErrorHandler::soft_report<ENonZeroProcess>(ENonZeroProcess);
 template void ErrorHandler::soft_report<EInvalidInputFile>(EInvalidInputFile);
 template void ErrorHandler::soft_report<EInvalidEscapeCode>(EInvalidEscapeCode);
 template void ErrorHandler::soft_report<EAdjacentWildcards>(EAdjacentWildcards);
+template void ErrorHandler::soft_report<ERecursiveVariable>(ERecursiveVariable);
+template void ErrorHandler::soft_report<ERecursiveTask>(ERecursiveTask);
 template FrameGuard::FrameGuard(IdentifierEvaluateFrame);
 template FrameGuard::FrameGuard(EntryBuildFrame);
 template FrameGuard::FrameGuard(DependencyBuildFrame);

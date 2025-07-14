@@ -388,6 +388,29 @@ public:
   EAdjacentWildcards(IString);
 };
 
+class ERecursiveVariable : public BuildError {
+private:
+  Identifier identifier;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  ERecursiveVariable() = delete;
+  ERecursiveVariable(Identifier);
+};
+
+class ERecursiveTask: public BuildError {
+private:
+  Task task;
+  std::string dependency_value;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  ERecursiveTask() = delete;
+  ERecursiveTask(Task, std::string);
+};
+
 // api-facing error handler.
 class ErrorHandler {
 private:
@@ -417,6 +440,7 @@ public:
 class Frame {
 public:
   virtual std::string render_frame(std::vector<unsigned char> config) = 0;
+  virtual std::string get_unique_identifier() = 0;
   virtual ~Frame() = default;
 };
 
@@ -427,6 +451,7 @@ private:
 
 public:
   std::string render_frame(std::vector<unsigned char> config) override;
+  std::string get_unique_identifier() override;
   EntryBuildFrame() = delete;
   EntryBuildFrame(std::string task, StreamReference reference);
 };
@@ -438,6 +463,7 @@ private:
 
 public:
   std::string render_frame(std::vector<unsigned char> config) override;
+  std::string get_unique_identifier() override;
   DependencyBuildFrame() = delete;
   DependencyBuildFrame(std::string task, StreamReference reference);
 };
@@ -449,6 +475,7 @@ private:
 
 public:
   std::string render_frame(std::vector<unsigned char> config) override;
+  std::string get_unique_identifier() override;
   IdentifierEvaluateFrame() = delete;
   IdentifierEvaluateFrame(std::string identifier, StreamReference reference);
 };
