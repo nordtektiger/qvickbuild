@@ -623,8 +623,7 @@ void Interpreter::t_run_task(Task task, std::string task_iteration,
   try {
     ContextStack::import_local_stack(local_stack);
     FrameGuard frame{DependencyBuildFrame(task_iteration, task.reference)};
-    if (0 > run_task(task, task_iteration))
-      *error = true;
+    run_task(task, task_iteration);
   } catch (...) {
     // it's ok to ignore the exception, since the task failure will throw an
     // EDependencyFailed regardless, which will unwind the combined error
@@ -646,11 +645,8 @@ Interpreter::_solve_dependencies_parallel(IValue dependencies) {
     }
     FrameGuard frame{
         DependencyBuildFrame(task_iteration.toString(), _task->reference)};
-    int run_status = run_task(*_task, task_iteration.toString());
-    if (0 > run_status)
-      ErrorHandler::halt(
-          EDependencyStatus{*_task, task_iteration, task_iteration.content});
-    return {0 == run_status, modified};
+    run_task(*_task, task_iteration.toString());
+    return {true, modified};
   }
   if (!std::holds_alternative<IList>(dependencies.value) ||
       !std::get<IList>(dependencies.value).holds_istring()) {
@@ -685,9 +681,8 @@ Interpreter::_solve_dependencies_parallel(IValue dependencies) {
   }
 
   if (*error) {
-    // todo: halt in appropriate thread, perhaps?
-    // this is not good, because the calling context will have no
-    // reference as to what went wrong.
+    // error will be pushed in the failing thread.
+    ErrorHandler::trigger_report();
     return {false, modified};
   } else
     return {true, modified};
@@ -702,11 +697,8 @@ DependencyStatus Interpreter::_solve_dependencies_sync(IValue dependencies) {
     if (_task) {
       FrameGuard frame{
           DependencyBuildFrame(task_iteration.toString(), _task->reference)};
-      int run_status = run_task(*_task, task_iteration.toString());
-      if (0 > run_status)
-        ErrorHandler::halt(
-            EDependencyStatus{*_task, task_iteration, task_iteration.content});
-      return {0 == run_status, modified};
+      run_task(*_task, task_iteration.toString());
+      return {true, modified};
     }
     return {true, modified};
   } else if (std::holds_alternative<IList>(dependencies.value) &&
@@ -724,14 +716,7 @@ DependencyStatus Interpreter::_solve_dependencies_sync(IValue dependencies) {
       }
       FrameGuard frame{
           DependencyBuildFrame(task_iteration.toString(), _task->reference)};
-      int run_status = run_task(*_task, task_iteration.toString());
-      if (0 > run_status) {
-        ErrorHandler::halt(
-            EDependencyStatus{*_task, task_iteration, task_iteration.content});
-      }
-      if (0 > run_status) { // what?
-        return {false, modified};
-      }
+      run_task(*_task, task_iteration.toString());
     }
     return {true, modified};
   } else {
@@ -748,7 +733,7 @@ DependencyStatus Interpreter::solve_dependencies(IValue dependencies,
     return _solve_dependencies_sync(dependencies);
 }
 
-int Interpreter::run_task(Task task, std::string task_iteration) {
+void Interpreter::run_task(Task task, std::string task_iteration) {
   // solve dependencies.
   std::optional<IValue> dependencies =
       evaluate_field_optional(DEPENDS, {task, task_iteration}, this->state);
@@ -766,8 +751,8 @@ int Interpreter::run_task(Task task, std::string task_iteration) {
         solve_dependencies(*dependencies, std::get<IBool>(parallel.value));
     dep_modified = dep_stat.modified;
     if (!dep_stat.success)
-      // todo: ErrorHandler
-      return -1;
+      ErrorHandler::trigger_report();
+    // ErrorHandler::halt(EDependencyStatus{});
   }
 
   // check for changes.
@@ -775,14 +760,14 @@ int Interpreter::run_task(Task task, std::string task_iteration) {
       OSLayer::get_file_timestamp(task_iteration);
   if (this_modified && dep_modified && *this_modified >= *dep_modified) {
     LOG_STANDARD("•" << RESET << " skipped " << task_iteration);
-    return 0;
+    return;
   }
 
   // execution related fields.
   std::optional<IValue> command_expr =
       evaluate_field_optional(RUN, {task, task_iteration}, this->state);
   if (!command_expr) {
-    return 0; // abstract task.
+    return; // abstract task.
   }
   IValue run_parallel_default = {IBool(false, task.reference), true};
   IValue run_parallel = *evaluate_field_default(
@@ -832,11 +817,9 @@ int Interpreter::run_task(Task task, std::string task_iteration) {
   }
 
   LOG_STANDARD(GREEN << "✓" << RESET << " finished " << task_iteration);
-  return 0;
 }
 
-// todo: why is this an int...?
-int Interpreter::build() {
+void Interpreter::build() {
 
   this->state = std::make_shared<EvaluationState>();
 
@@ -869,11 +852,5 @@ int Interpreter::build() {
   LOG_STANDARD("⧗ building " << CYAN << task_iteration << RESET);
   // todo: error checking is also required here in case task doesn't exist.
   FrameGuard frame{EntryBuildFrame(task_iteration, task->reference)};
-  if (0 == run_task(*task, task_iteration)) {
-    return 0;
-  } else {
-    // if the build failed without halting the interpreter, there isn't really
-    // anything that can be done, so just inject a compiler crash.
-    throw std::exception();
-  }
+  run_task(*task, task_iteration);
 }
