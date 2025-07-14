@@ -16,9 +16,7 @@ test:
   stage: test
   image: archlinux:base-devel
   script:
+    - ./bin/quickbuild test
     - ./bin/quickbuild
-    - ./bin/quickbuild --configfile tests/test1
-    - ./bin/quickbuild --configfile tests/test2
-    - ./bin/quickbuild --configfile tests/test3
   dependencies:
     - build

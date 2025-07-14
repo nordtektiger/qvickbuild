@@ -10,7 +10,7 @@ var6 = "foo1", "bar1", "baz1";
 test = [var1, var4, var6]: "1" -> "#";
 ans = "string # 2 3 foo1 bar1 baz1";
 
-"verify" {
+"verify-1" {
   # automatically fail build if strings don't match by utilizing shell scripting.
   run = "if \[ '[test]' = '[ans]' \]; then exit 0; else exit -1; fi";
 }
