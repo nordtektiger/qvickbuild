@@ -2,6 +2,7 @@
 #include "errors.hpp"
 #include "filesystem"
 #include "format.hpp"
+#include "literals.hpp"
 #include "oslayer.hpp"
 #include "static_verify.hpp"
 #include "tracking.hpp"
@@ -81,10 +82,6 @@ bool EvaluationContext::context_verify(EvaluationContext const other) const {
     return true;
   return false;
 }
-
-// used in matching algorithms.
-struct Wildcard {};
-using StringComponent = std::variant<Wildcard, std::string>;
 
 // visitor that evaluates an AST object recursively.
 struct ASTEvaluate {
@@ -183,80 +180,18 @@ IValue expand_literal(IString input_istring, bool immutable) {
   if (i_asterisk == std::string::npos) // no globbing.
     return {input_istring};
 
-  // globbing is required - start by preprocessing filter string to simplify the
-  // matching algorithm.
-  std::vector<StringComponent> filter_parsed;
-  std::string filter_str = input_istring.content;
-  std::string str_buf;
-  for (size_t i = 0; i < filter_str.size(); i++) {
-    if (filter_str[i] == '*') {
-      if (!str_buf.empty()) {
-        filter_parsed.push_back(str_buf);
-        str_buf = "";
-      }
-      filter_parsed.push_back(Wildcard{});
-    } else
-      str_buf += filter_str[i];
-  }
-  if (!str_buf.empty()) {
-    filter_parsed.push_back(str_buf);
-    str_buf = "";
+  // globbing is required.
+  std::vector<std::string> paths;
+  try {
+    paths = Globbing::compute_paths(input_istring.content);
+  } catch (LiteralsAdjacentWildcards &_) {
+    ErrorHandler::halt(EAdjacentWildcards{input_istring});
   }
 
-  // matching paths, acts as a string vector.
+  // convert to interpreter strings.
   std::vector<IString> contents;
-
-  for (std::filesystem::directory_entry const &dir_entry :
-       std::filesystem::recursive_directory_iterator(".")) {
-    std::string dir_path = dir_entry.path().string();
-    size_t i = 0;
-    bool elem_match = true;
-    std::vector<std::string> reconstruction_vector;
-    for (size_t i_comp = 0; i_comp < filter_parsed.size(); i_comp++) {
-      StringComponent const &str_component = filter_parsed[i_comp];
-      if (std::holds_alternative<std::string>(str_component)) {
-        // match exact characters
-        std::string match_criteria = std::get<std::string>(str_component);
-        if (match_criteria.size() > dir_path.size()) {
-          elem_match = false;
-          break;
-        } else if (match_criteria !=
-                   dir_path.substr(i, match_criteria.size())) {
-          elem_match = false;
-          break;
-        }
-        i += match_criteria.size();
-      } else {
-        // wildcard
-        if (i_comp >= filter_parsed.size() - 1) {
-          // final asterisk
-          break;
-        }
-        if (std::holds_alternative<Wildcard>(filter_parsed[i_comp + 1]))
-          ErrorHandler::halt(EAdjacentWildcards{input_istring});
-        bool seg_match = false;
-        std::string match_criteria =
-            std::get<std::string>(filter_parsed[i_comp + 1]);
-        for (size_t i_seg = 0;
-             i_seg < dir_path.size() - i - match_criteria.size() + 1; i_seg++) {
-          if (dir_path.substr(i + i_seg, match_criteria.size()) ==
-              match_criteria) {
-            seg_match = true;
-            i += i_seg + match_criteria.size();
-            break;
-          }
-        }
-        if (!seg_match) {
-          elem_match = false;
-          break;
-        } else {
-          // increment this twice because two components have been matched.
-          i_comp++;
-        }
-      }
-    }
-    if (elem_match)
-      contents.push_back(IString(dir_path, input_istring.reference));
+  for (const std::string &str : paths) {
+    contents.push_back(IString{str, input_istring.reference});
   }
 
   if (contents.size() == 1)
@@ -442,121 +377,26 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
   std::string filter_str = std::get<IString>(filter.value).content;
   std::string product_str = std::get<IString>(product.value).content;
 
-  // preprocess filter and product string to simplify the matching algorithm.
-  std::vector<StringComponent> filter_parsed;
-  std::string str_buf;
-  for (size_t i = 0; i < filter_str.size(); i++) {
-    if (filter_str[i] == '*') {
-      if (!str_buf.empty()) {
-        filter_parsed.push_back(str_buf);
-        str_buf = "";
-      }
-      filter_parsed.push_back(Wildcard{});
-    } else
-      str_buf += filter_str[i];
-  }
-  if (!str_buf.empty()) {
-    filter_parsed.push_back(str_buf);
-    str_buf = "";
-  }
-
-  // preprocess product string
-  std::vector<StringComponent> product_parsed;
-  for (size_t i = 0; i < product_str.size(); i++) {
-    if (product_str[i] == '*') {
-      if (!str_buf.empty()) {
-        product_parsed.push_back(str_buf);
-        str_buf = "";
-      }
-      product_parsed.push_back(Wildcard{});
-    } else
-      str_buf += product_str[i];
-  }
-  if (!str_buf.empty()) {
-    product_parsed.push_back(str_buf);
-    str_buf = "";
-  }
-
-  size_t wildcards_product = std::count_if(
-      product_parsed.begin(), product_parsed.end(),
-      [](StringComponent s) { return std::holds_alternative<Wildcard>(s); });
-
-  size_t wildcards_filter = std::count_if(
-      filter_parsed.begin(), filter_parsed.end(),
-      [](StringComponent s) { return std::holds_alternative<Wildcard>(s); });
-
-  if (wildcards_product > wildcards_filter)
-    ErrorHandler::halt(EReplaceChunksLength{product});
-
-  // matching algorithm: traverse filter vector
+  // convert to pure strings first...
+  std::vector<std::string> algorithm_input;
   for (const IString &istring : std::get<ILIST_STR>(input_parsed.contents)) {
-    size_t i = 0;
-    bool elem_match = true;
-    std::vector<std::string> reconstruction_vector;
-    for (size_t i_comp = 0; i_comp < filter_parsed.size(); i_comp++) {
-      StringComponent const &str_component = filter_parsed[i_comp];
-      if (std::holds_alternative<std::string>(str_component)) {
-        // match exact characters
-        std::string match_criteria = std::get<std::string>(str_component);
-        if (match_criteria.size() > istring.content.size()) {
-          elem_match = false;
-          break;
-        } else if (match_criteria !=
-                   istring.content.substr(i, match_criteria.size())) {
-          elem_match = false;
-          break;
-        }
-        i += match_criteria.size();
-      } else {
-        // wildcard
-        if (i_comp >= filter_parsed.size() - 1) {
-          // final asterisk: don't forget to save it as a reconstruciton group.
-          reconstruction_vector.push_back(
-              istring.content.substr(i, istring.content.size() - i));
-          break;
-        }
-        if (std::holds_alternative<Wildcard>(filter_parsed[i_comp + 1]))
-          ErrorHandler::halt(EAdjacentWildcards{istring});
-        bool seg_match = false;
-        std::string match_criteria =
-            std::get<std::string>(filter_parsed[i_comp + 1]);
-        for (size_t i_seg = 0;
-             i_seg < istring.content.size() - i - match_criteria.size() + 1;
-             i_seg++) {
-          if (istring.content.substr(i + i_seg, match_criteria.size()) ==
-              match_criteria) {
-            seg_match = true;
-            reconstruction_vector.push_back(istring.content.substr(i, i_seg));
-            i += i_seg + match_criteria.size();
-            break;
-          }
-        }
-        if (!seg_match) {
-          elem_match = false;
-          break;
-        } else {
-          // increment this twice because two components have been matched.
-          i_comp++;
-        }
-      }
-    }
+    algorithm_input.push_back(istring.content);
+  }
 
-    if (!elem_match)
-      std::get<ILIST_STR>(output_parsed.contents).push_back(istring);
-    else {
-      std::string reconstructed;
-      size_t i_reconstruction_vec = 0;
-      for (StringComponent const &str_component : product_parsed) {
-        if (std::holds_alternative<std::string>(str_component))
-          reconstructed += std::get<std::string>(str_component);
-        else {
-          reconstructed += reconstruction_vector[i_reconstruction_vec];
-          i_reconstruction_vec++;
-        }
-      }
-      std::get<ILIST_STR>(output_parsed.contents)
-          .push_back({reconstructed, istring.reference});
-    }
+  std::vector<std::string> algorithm_output;
+  try {
+    algorithm_output =
+        Wildcards::compute_replace(algorithm_input, filter_str, product_str);
+  } catch (LiteralsAdjacentWildcards &_) {
+    ErrorHandler::halt(EAdjacentWildcards{std::get<IString>(filter.value)});
+  } catch (LiteralsChunksLength &_) {
+    ErrorHandler::halt(EReplaceChunksLength{product});
+  }
+
+  // convert back to interpreter types for tracking
+  for (const std::string &str : algorithm_output) {
+    std::get<ILIST_STR>(output_parsed.contents)
+        .push_back(IString{str, replace.reference});
   }
 
   return {output_parsed, immutable};
