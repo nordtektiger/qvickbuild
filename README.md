@@ -1,6 +1,6 @@
 # Quickbuild
 > [!WARNING]
-> Quickbuild is currently in early beta and is undergoing major changes. Expect frequent crashes, segmentation faults, and undefined behaviour. Please see the roadmap for more information.
+> Quickbuild is currently in early beta and is undergoing major changes. Expect frequent crashes and faulty behaviour. Please see the the issue tracker and version milestones for more information.
 
 ## "What is this?"
 
@@ -13,7 +13,7 @@ Tired of looking up what `$<` and `$@` does? Say hello to `[depends]` and `[what
 
 Quickbuild trades a slightly more verbose configuration with intuitive and simpler syntax that takes the pain out of writing makefiles. This makes it suitable for small to medium sized projects and for those who are starting out with low level development. However, this is *not* a replacement for Make - Quickbuild does not have, and will never achieve, feature parity with other build systems such as Make or CMake.
 
-Quickbuild is fast enough that you never have to worry about performance. It is written in C++, and performance analysis is regularly applied to spot any bottlenecks. Based on limited testing, Quickbuild seems to be within 5% of the runtime of Make.
+Quickbuild is fast enough that you never have to worry about performance. It is written in C++, and performance analysis is regularly applied to spot any bottlenecks.
 
 ## Installation
 Quickbuild is available from the AUR as `quickbuild-git`. If you aren't running Arch, you can also build it from source.
@@ -22,7 +22,7 @@ Quickbuild is available from the AUR as `quickbuild-git`. If you aren't running 
 
 > Dependencies:
 > - make _or_ quickbuild
-> - clang >= 17
+> - clang with stdlib >= c++20
 
 Normal installation using Make:
 ```
@@ -56,16 +56,20 @@ my_fancy_list = "element1", "elem2", "hi";
 my_faulty_list = "foo1", false, "foo3";     # can't have two different types in the same list
 ```
 
-If an asterisk (wildcard) is present in a string, it is automatically expended into all matching filepaths. A notable exception to this rule is when it's present in a replacement operator, where the asterisks serve as a matching rule instead.
+If an asterisk (wildcard) is present in a string, it is automatically expended into all matching filepaths. A notable exception to this rule will soon be explained. is when it's present in a replacement operator, where the asterisks serve as a matching rule instead.
 ```
-my_source_files = "src/*.cpp";      # expands into "src/foo.cpp", "src/bar.cpp", ...
-my_header_files = "src/*.hpp";      # expands into "src/baz.hpp", "src/another.hpp", ...
+my_source_files = "./src/*.cpp";      # expands into "./src/foo.cpp", "./src/bar.cpp", ...
+my_header_files = "./src/*.hpp";      # expands into "./src/baz.hpp", "./src/another.hpp", ...
 ```
 
-There is also an in-built operator for a simple search-and-replace (often called the replacement operator).
+There is also an in-built operator for a simple search-and-replace (often called the replacement operator). It attempts to apply a wildcard matching rule to every element, and the elements that match are replaced with the desired output string, as shown below.
+
+> [!NOTE]
+> Wildcards have different behaviours depending on their location. If they're in a variable declaration, they will be used for globbing file paths, but if they're in a replacement operator, they will serve as a generic matching rule.
+
 ```
-sources = "src/thing.cpp", "src/another.cpp";
-objects = sources: "src/*.cpp" -> "obj/*.o";        # expands into "obj/thing.o", "obj/another.o"
+sources = "thing.cpp", "another.cpp";
+objects = sources: "*.cpp" -> "*.o";        # expands into "obj/thing.o", "obj/another.o"
 ```
 
 String interpolation is also implemented, and requires the use of brackets.
@@ -73,6 +77,8 @@ String interpolation is also implemented, and requires the use of brackets.
 foo = "World";
 bar = "Hello, [foo]!";      # "Hello, World!"
 ```
+
+Quickbuild supports most C-style escape sequences. Thus, `\n` is a valid newline, `\r` is a valid carriage return, `\"` is a " character, etc. Note that it is also possible to escape brackets using `\[` and `\]` if you don't want them to be parsed as an escaped expression during string interpolation.
 
 ### Tasks 
 Every task has to have a name and may optionally contain any number of additional fields field. Tasks are equivalent to Make targets, and can be declared as follows.
@@ -150,11 +156,11 @@ compiler = "clang++";
 flags = "-g -O0 -Wall -Wextra -pthread -pedantic-errors";
 
 # files to compile
-sources = "src/*.cpp";
-headers = "src/*.hpp";
+sources = "./src/*.cpp";
+headers = "./src/*.hpp";
 
 # files to create
-objects = sources: "src/*.cpp" -> "obj/*.o";
+objects = sources: "./src/*.cpp" -> "./obj/*.o";
 binary = "./bin/quickbuild";
 
 # main task
@@ -165,7 +171,7 @@ binary = "./bin/quickbuild";
 
 # object files
 objects as obj {
-  depends = obj: "obj/*.o" -> "src/*.cpp";
+  depends = obj: "./obj/*.o" -> "./src/*.cpp";
   run = "[compiler] [flags] -c [depends] -o [obj]";
 }
 
@@ -181,3 +187,10 @@ objects as obj {
         "rm [binary]";
 }
 ```
+
+### Contributors
+The entirety of the Quickbuild language specification, compiler, interpreter, and core systems are written and maintained by [@nordtektiger](https://gitlab.com/nordtektiger).
+
+The language server [quickbuildls](https://github.com/jmattaa/quickbuildls) is written and maintained by [@jmattaa](https://github.com/jmattaa).
+
+Additionally, compatability patches for compilation on MacOS as well as the make install target are possible thanks to [@jmattaa](https://github.com/jmattaa).
