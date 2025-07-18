@@ -14,4 +14,3 @@ ans = "string # 2 3 foo1 bar1 baz1";
   # automatically fail build if strings don't match by utilizing shell scripting.
   run = "if \[ '[test]' = '[ans]' \]; then exit 0; else exit -1; fi";
 }
-

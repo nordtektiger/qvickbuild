@@ -1,6 +1,7 @@
 #include "literals.hpp"
 #include <algorithm>
 #include <filesystem>
+#include <iostream>
 
 std::vector<std::string> Globbing::compute_paths(std::string literal) {
   std::vector<StrComponent> filter = Wildcards::tokenize_components(literal);
@@ -65,6 +66,8 @@ Wildcards::match_components(std::vector<StrComponent> filter, std::string in) {
         matches = false;
         break;
       };
+      // std::cerr << i_str << " + " << str_component.size() << " < " <<
+      // in.size() << std::endl;
       i_str += str_component.size();
     } else {
       // --- match wildcard
@@ -84,11 +87,14 @@ Wildcards::match_components(std::vector<StrComponent> filter, std::string in) {
       for (size_t i_seg = 0;
            i_seg < in.size() - i_str - str_component.size() + 1; i_seg++) {
         if (in.substr(i_str + i_seg, str_component.size()) == str_component) {
+          if (i_comp == filter.size() - 2 && i_str + i_seg + str_component.size() < in.size())
+            continue;
           seg_match = true;
           output.push_back(in.substr(i_str, i_seg));
           i_str += i_seg + str_component.size();
           break;
         }
+        // std::cerr << i_str << " + " << i_seg << " + " << str_component.size() << " < " << in.size() << std::endl;
       }
       if (!seg_match) {
         matches = false;
