@@ -66,8 +66,6 @@ Wildcards::match_components(std::vector<StrComponent> filter, std::string in) {
         matches = false;
         break;
       };
-      // std::cerr << i_str << " + " << str_component.size() << " < " <<
-      // in.size() << std::endl;
       i_str += str_component.size();
     } else {
       // --- match wildcard
@@ -94,7 +92,6 @@ Wildcards::match_components(std::vector<StrComponent> filter, std::string in) {
           i_str += i_seg + str_component.size();
           break;
         }
-        // std::cerr << i_str << " + " << i_seg << " + " << str_component.size() << " < " << in.size() << std::endl;
       }
       if (!seg_match) {
         matches = false;
