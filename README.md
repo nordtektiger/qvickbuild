@@ -1,5 +1,5 @@
 # Quickbuild
-> [!WARNING]
+> [!IMPORTANT]
 > Quickbuild is currently in early beta and is undergoing major changes. Expect frequent crashes and faulty behaviour. Please see the the issue tracker and version milestones for more information.
 
 ## "What is this?"
@@ -188,9 +188,8 @@ objects as obj {
 }
 ```
 
-### Contributors
-The entirety of the Quickbuild language specification, compiler, interpreter, and core systems are written and maintained by [@nordtektiger](https://gitlab.com/nordtektiger).
+## Contributors
+The entirety of the Quickbuild language specification, compiler, interpreter, as well as the core systems are written and maintained by [@nordtektiger](https://gitlab.com/nordtektiger).
 
 The language server [quickbuildls](https://github.com/jmattaa/quickbuildls) is written and maintained by [@jmattaa](https://github.com/jmattaa).
-
 Additionally, compatability patches for compilation on MacOS as well as the make install target are possible thanks to [@jmattaa](https://github.com/jmattaa).
