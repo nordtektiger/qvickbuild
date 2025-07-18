@@ -1,0 +1,8 @@
+# --- tests the use of multiple wildcards in path searching algorithm
+#     as well as subset of file extension
+test = "./sr*/*.cp";
+ans = "";
+
+"verify-4" {
+  run = "if \[ '[test]' = '[ans]' \]; then exit 0; else exit -1; fi";
+}
