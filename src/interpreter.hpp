@@ -6,9 +6,9 @@ struct IBool;
 struct IList;
 struct IValue;
 
-#include "tracking.hpp"
 #include "driver.hpp"
 #include "parser.hpp"
+#include "tracking.hpp"
 #include <mutex>
 #include <variant>
 #include <vector>
@@ -49,7 +49,7 @@ struct IList {
 };
 
 struct IValue {
-  std::variant<IString, IBool, IList> value;
+  std::variant<IString, IBool, IList> data;
   bool immutable = true;
   // IValue() = delete; // todo: consider implementation
 };
@@ -64,7 +64,7 @@ struct EvaluationContext {
   std::optional<Task> task_scope;
   std::optional<std::string> task_iteration;
   bool use_globbing = true;
-  bool context_verify(EvaluationContext const) const;
+  bool is_reachable_by(EvaluationContext const) const;
 };
 
 struct ValueInstance {
@@ -73,7 +73,11 @@ struct ValueInstance {
   IValue result;
 };
 struct EvaluationState {
-  std::vector<ValueInstance> values;
+  std::unique_ptr<AST> ast;
+  Setup setup;
+  std::vector<ValueInstance> cached_variables;
+  std::map<std::string, std::shared_ptr<Task>> cached_tasks;
+  std::optional<Task> topmost_task;
 };
 
 struct DependencyStatus {
@@ -85,25 +89,18 @@ struct DependencyStatus {
 
 class Interpreter {
 private:
-  AST &m_ast;
-  Setup &m_setup;
   std::shared_ptr<EvaluationState> state;
   std::mutex evaluation_lock;
 
-
-  IValue evaluate_ast_object(ASTObject ast_object, AST &ast,
-                             EvaluationContext context,
-                             std::shared_ptr<EvaluationState> state);
-  std::optional<Task> find_task(IString identifier);
+  IValue evaluate_ast_object(ASTObject ast_object, EvaluationContext context);
+  std::optional<Task> find_task(std::string identifier);
   std::optional<Field> find_field(std::string identifier,
                                   std::optional<Task> task);
+  std::optional<IValue> evaluate_field_optional(std::string identifier,
+                                                EvaluationContext context);
   std::optional<IValue>
-  evaluate_field_optional(std::string identifier, EvaluationContext context,
-                          std::shared_ptr<EvaluationState> state);
-  std::optional<IValue> evaluate_field_default(std::string identifier,
-                                EvaluationContext context,
-                                std::shared_ptr<EvaluationState> state,
-                                std::optional<IValue> default_value);
+  evaluate_field_default(std::string identifier, EvaluationContext context,
+                         std::optional<IValue> default_value);
   void t_run_task(Task task, std::string task_iteration,
                   std::shared_ptr<std::atomic<bool>> error,
                   std::vector<std::shared_ptr<Frame>> local_stack);

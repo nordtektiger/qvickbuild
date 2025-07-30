@@ -144,7 +144,7 @@ ErrorRenderer::get_reference_view(std::vector<unsigned char> config,
 //                                line_num_length + 2 +
 //                                reference_view.start_ref);
 //   std::string underline("^", reference_view.end_ref -
-//   reference_view.start_ref); return std::format("{} | {}\n{}{}", line_num,
+//   reference_view.start_ref); return std::format("{} | {}{}\n{}", line_num,
 //   line_str, underline_prefix,
 //                      underline);
 // }
@@ -197,12 +197,12 @@ std::string ErrorRenderer::stringify_type(
     }
   } else if (std::holds_alternative<IValue>(object)) {
     IValue ivalue = std::get<IValue>(object);
-    if (std::holds_alternative<IString>(ivalue.value)) {
+    if (std::holds_alternative<IString>(ivalue.data)) {
       return "string";
-    } else if (std::holds_alternative<IBool>(ivalue.value)) {
+    } else if (std::holds_alternative<IBool>(ivalue.data)) {
       return "bool";
-    } else if (std::holds_alternative<IList>(ivalue.value)) {
-      IList list = std::get<IList>(ivalue.value);
+    } else if (std::holds_alternative<IList>(ivalue.data)) {
+      IList list = std::get<IList>(ivalue.data);
       if (list.holds_istring())
         return "list<string>";
       else if (list.holds_ibool())
@@ -244,7 +244,7 @@ ENoMatchingIdentifier::render_error(std::vector<unsigned char> config) {
       identifier_view, "variable referred to here");
   return std::format(
       "{}{}error:{}{} variable '{}' referred to on line {} does not "
-      "exist.\n{}{}",
+      "exist.{}\n{}",
       RED, BOLD, RESET, BOLD, identifier.content, identifier_view.line_num,
       RESET, rendered_view);
 };
@@ -258,11 +258,11 @@ EListTypeMismatch::EListTypeMismatch(IList list, IValue ivalue)
 
 std::string EListTypeMismatch::render_error(std::vector<unsigned char> config) {
   ReferenceView obj_view = ErrorRenderer::get_reference_view(
-      config, std::visit(IVisitReference{}, faulty_ivalue.value));
+      config, std::visit(IVisitReference{}, faulty_ivalue.data));
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(obj_view, "faulty type here");
   return std::format("{}{}error:{}{} an item of type '{}' cannot be stored in "
-                     "a list of type '{}'.\n{}{}",
+                     "a list of type '{}'.{}\n{}",
                      RED, BOLD, RESET, BOLD,
                      ErrorRenderer::stringify_type(faulty_ivalue),
                      ErrorRenderer::stringify_type(list), RESET, rendered_view);
@@ -281,11 +281,11 @@ EReplaceTypeMismatch::EReplaceTypeMismatch(Replace replace,
 std::string
 EReplaceTypeMismatch::render_error(std::vector<unsigned char> config) {
   ReferenceView obj_view = ErrorRenderer::get_reference_view(
-      config, std::visit(IVisitReference{}, faulty_ivalue.value));
+      config, std::visit(IVisitReference{}, faulty_ivalue.data));
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(obj_view, "faulty type here");
   return std::format("{}{}error:{}{} the replacement operator can only operate "
-                     "with strings.\n{}{}",
+                     "with strings.{}\n{}",
                      RED, BOLD, RESET, BOLD, RESET, rendered_view);
 }
 
@@ -298,12 +298,12 @@ EReplaceChunksLength::EReplaceChunksLength(IValue replacement)
 
 std::string
 EReplaceChunksLength::render_error(std::vector<unsigned char> config) {
-  StreamReference ref = std::visit(IVisitReference{}, replacement.value);
+  StreamReference ref = std::visit(IVisitReference{}, replacement.data);
   ReferenceView repl_view = ErrorRenderer::get_reference_view(config, ref);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(repl_view, "too many wildcards here");
   return std::format("{}{}error:{}{} invalid combination of wildcards in "
-                     "replacement operator on line {}.\n{}{}",
+                     "replacement operator on line {}.{}\n{}",
                      RED, BOLD, RESET, BOLD, repl_view.line_num, RESET,
                      rendered_view);
 }
@@ -320,12 +320,12 @@ EVariableTypeMismatch::EVariableTypeMismatch(IValue variable,
 
 std::string
 EVariableTypeMismatch::render_error(std::vector<unsigned char> config) {
-  StreamReference var_ref = std::visit(IVisitReference{}, variable.value);
+  StreamReference var_ref = std::visit(IVisitReference{}, variable.data);
   ReferenceView var_view = ErrorRenderer::get_reference_view(config, var_ref);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(var_view, "variable defined here");
   return std::format("{}{}error:{}{} expected variable defined on line {} to "
-                     "be of type '{}', but was '{}'\n{}{}",
+                     "be of type '{}', but was '{}'{}\n{}",
                      RED, BOLD, RESET, BOLD, var_view.line_num, expected_type,
                      ErrorRenderer::stringify_type(variable), RESET,
                      rendered_view);
@@ -345,7 +345,7 @@ std::string ENonZeroProcess::render_error(std::vector<unsigned char> config) {
   ReferenceView ref_view = ErrorRenderer::get_reference_view(config, reference);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(ref_view, "command defined here");
-  return std::format("{}{}error:{}{} the command '{}' failed.\n{}{}", RED, BOLD,
+  return std::format("{}{}error:{}{} the command '{}' failed.{}\n{}", RED, BOLD,
                      RESET, BOLD, cmdline, RESET, rendered_view);
 }
 
@@ -378,7 +378,7 @@ std::string EAmbiguousTask::render_error(std::vector<unsigned char> config) {
       ErrorRenderer::get_rendered_view(task_view, "task defined here");
   return std::format(
       "{}{}error:{}{} topmost task defined on line {} is ambiguous. specify a "
-      "specific task to build or move the definition.\n{}{}",
+      "specific task to build or move the definition.{}\n{}",
       RED, BOLD, RESET, BOLD, task_view.line_num, RESET, rendered_view);
 }
 
@@ -403,7 +403,7 @@ std::string EDependencyStatus::render_error(std::vector<unsigned char> config) {
       ErrorRenderer::get_rendered_view(task_view, "task defined here");
   return std::format("{}{}error:{}{} dependency '{}' defined on line {} and "
                      "referred to on line {} "
-                     "not met; building the task failed.\n{}{}",
+                     "not met; building the task failed.{}\n{}",
                      RED, BOLD, RESET, BOLD, dependency_value,
                      task_view.line_num, ref_view.line_num, RESET,
                      rendered_view);
@@ -419,13 +419,13 @@ EDependencyFailed::EDependencyFailed(IValue dep, std::string dependency_value)
 }
 
 std::string EDependencyFailed::render_error(std::vector<unsigned char> config) {
-  StreamReference ref = std::visit(IVisitReference{}, dependency.value);
+  StreamReference ref = std::visit(IVisitReference{}, dependency.data);
   ReferenceView dep_view = ErrorRenderer::get_reference_view(config, ref);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(dep_view, "dependency referred to here");
   return std::format("{}{}error:{}{} dependency '{}' referred to on line {} "
                      "not met; file does not "
-                     "exist and no task was found.\n{}{}",
+                     "exist and no task was found.{}\n{}",
                      RED, BOLD, RESET, BOLD, dependency_value,
                      dep_view.line_num, RESET, rendered_view);
 }
@@ -444,7 +444,7 @@ std::string EInvalidSymbol::render_error(std::vector<unsigned char> config) {
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(ref_view, "symbol encountered here");
   return std::format(
-      "{}{}error:{}{} invalid symbol '{}' encountered on line {}.\n{}{}", RED,
+      "{}{}error:{}{} invalid symbol '{}' encountered on line {}.{}\n{}", RED,
       BOLD, RESET, BOLD, symbol, ref_view.line_num, RESET, rendered_view);
 }
 
@@ -459,7 +459,7 @@ std::string EInvalidLiteral::render_error(std::vector<unsigned char> config) {
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(ref_view, "invalid symbol here");
   return std::format(
-      "{}{}error:{}{} invalid literal encountered on line {}.\n{}{}", RED, BOLD,
+      "{}{}error:{}{} invalid literal encountered on line {}.{}\n{}", RED, BOLD,
       RESET, BOLD, ref_view.line_num, rendered_view, RESET);
 }
 
@@ -474,7 +474,7 @@ std::string EInvalidGrammar::render_error(std::vector<unsigned char> config) {
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(ref_view, "syntax encountered here");
   return std::format(
-      "{}{}error:{}{} invalid language syntax encountered on line {}.\n{}{}",
+      "{}{}error:{}{} invalid language syntax encountered on line {}.{}\n{}",
       RED, BOLD, RESET, BOLD, ref_view.line_num, RESET, rendered_view);
 }
 
@@ -488,7 +488,7 @@ std::string ENoValue::render_error(std::vector<unsigned char> config) {
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(decl_view, "variable declared here");
   return std::format("{}{}error:{}{} invalid value for variable '{}' declared "
-                     "on line {}.\n{}{}",
+                     "on line {}.{}\n{}",
                      RED, BOLD, RESET, BOLD, identifier.content,
                      decl_view.line_num, RESET, rendered_view);
 }
@@ -505,7 +505,7 @@ std::string ENoLinestop::render_error(std::vector<unsigned char> config) {
   std::string rendered_view = ErrorRenderer::get_rendered_view(
       line_view, "semicolon expected after this expression");
   return std::format("{}{}error:{}{} missing semicolon or invalid expression "
-                     "on line {}.\n{}{}",
+                     "on line {}.{}\n{}",
                      RED, BOLD, RESET, BOLD, line_view.line_num, RESET,
                      rendered_view);
 }
@@ -522,7 +522,7 @@ std::string ENoIterator::render_error(std::vector<unsigned char> config) {
   std::string rendered_view = ErrorRenderer::get_rendered_view(
       task_view, "explicit iterator required because of this");
   return std::format("{}{}error:{}{} task defined on line {} doesn't have a "
-                     "valid explicit iterator.\n{}{}",
+                     "valid explicit iterator.{}\n{}",
                      RED, BOLD, RESET, BOLD, task_view.line_num, RESET,
                      rendered_view);
 }
@@ -539,7 +539,7 @@ std::string ENoTaskOpen::render_error(std::vector<unsigned char> config) {
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(task_view, "task defined here");
   return std::format("{}{}error:{}{} task defined on line {} doesn't have an "
-                     "opening curly bracket.\n{}{}",
+                     "opening curly bracket.{}\n{}",
                      RED, BOLD, RESET, BOLD, task_view.line_num, RESET,
                      rendered_view);
 }
@@ -558,7 +558,7 @@ std::string ENoTaskClose::render_error(std::vector<unsigned char> config) {
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(task_view, "task defined here");
   return std::format("{}{}error:{}{} task defined on line {} doesn't have a "
-                     "closing curly bracket.\n{}{}",
+                     "closing curly bracket.{}\n{}",
                      RED, BOLD, RESET, BOLD, task_view.line_num, RESET,
                      rendered_view);
 }
@@ -577,7 +577,7 @@ std::string EInvalidListEnd::render_error(std::vector<unsigned char> config) {
   std::string rendered_view = ErrorRenderer::get_rendered_view(
       separator_view, "item expected after this separator");
   return std::format("{}{}error:{}{} list defined on line {} contains an "
-                     "invalid ending.\n{}{}",
+                     "invalid ending.{}\n{}",
                      RED, BOLD, RESET, BOLD, separator_view.line_num, RESET,
                      rendered_view);
 }
@@ -595,7 +595,7 @@ ENoReplacementIdentifier::render_error(std::vector<unsigned char> config) {
   std::string rendered_view = ErrorRenderer::get_rendered_view(
       modify_view, "expression expected before this colon");
   return std::format("{}{}error:{}{} replacement operator on line {} does not "
-                     "contain a valid input expression.\n{}{}",
+                     "contain a valid input expression.{}\n{}",
                      RED, BOLD, RESET, BOLD, modify_view.line_num, RESET,
                      rendered_view);
 }
@@ -615,7 +615,7 @@ ENoReplacementOriginal::render_error(std::vector<unsigned char> config) {
   std::string rendered_view = ErrorRenderer::get_rendered_view(
       modify_view, "expression expected after this colon");
   return std::format("{}{}error:{}{} replacement operator on line {} does not "
-                     "contain a valid matching expression.\n{}{}",
+                     "contain a valid matching expression.{}\n{}",
                      RED, BOLD, RESET, BOLD, modify_view.line_num, RESET,
                      rendered_view);
 }
@@ -635,7 +635,7 @@ ENoReplacementArrow::render_error(std::vector<unsigned char> config) {
   std::string rendered_view = ErrorRenderer::get_rendered_view(
       original_view, "arrow expected after this expression");
   return std::format("{}{}error:{}{} expected an arrow in the replacement "
-                     "operator on line {}.\n{}{}",
+                     "operator on line {}.{}\n{}",
                      RED, BOLD, RESET, BOLD, original_view.line_num, RESET,
                      rendered_view);
 }
@@ -656,7 +656,7 @@ ENoReplacementReplacement::render_error(std::vector<unsigned char> config) {
   std::string rendered_view = ErrorRenderer::get_rendered_view(
       arrow_view, "expression expected after this arrow");
   return std::format("{}{}error:{}{} replacement operator on line {} does not "
-                     "contain a valid output expression.\n{}{}",
+                     "contain a valid output expression.{}\n{}",
                      RED, BOLD, RESET, BOLD, arrow_view.line_num, RESET,
                      rendered_view);
 }
@@ -677,7 +677,7 @@ EInvalidEscapedExpression::render_error(std::vector<unsigned char> config) {
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(expr_view, "invalid expression here");
   return std::format("{}{}error:{}{} string defined on line {} contains an "
-                     "invalid expression.\n{}{}",
+                     "invalid expression.{}\n{}",
                      RED, BOLD, RESET, BOLD, expr_view.line_num, RESET,
                      rendered_view);
 }
@@ -697,7 +697,7 @@ ENoExpressionClose::render_error(std::vector<unsigned char> config) {
   std::string rendered_view = ErrorRenderer::get_rendered_view(
       expr_view, "expected closing bracket after this");
   return std::format("{}{}error:{}{} expected a closing bracket after "
-                     "expression on line {}.\n{}{}",
+                     "expression on line {}.{}\n{}",
                      RED, BOLD, RESET, BOLD, expr_view.line_num, RESET,
                      rendered_view);
 }
@@ -716,7 +716,7 @@ std::string EEmptyExpression::render_error(std::vector<unsigned char> config) {
   std::string rendered_view = ErrorRenderer::get_rendered_view(
       expr_view, "expected expression after this bracket");
   return std::format("{}{}error:{}{} expected an expression after an opening "
-                     "bracket on line {}.\n{}{}",
+                     "bracket on line {}.{}\n{}",
                      RED, BOLD, RESET, BOLD, expr_view.line_num, RESET,
                      rendered_view);
 }
@@ -747,7 +747,7 @@ EInvalidEscapeCode::render_error(std::vector<unsigned char> config) {
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(code_view, "escape code here");
   return std::format(
-      "{}{}error:{}{} escape code '\\{}' on line {} is invalid.\n{}{}", RED,
+      "{}{}error:{}{} escape code '\\{}' on line {} is invalid.{}\n{}", RED,
       BOLD, RESET, BOLD, std::string(1, code), code_view.line_num, RESET,
       rendered_view);
 }
@@ -765,7 +765,7 @@ EAdjacentWildcards::render_error(std::vector<unsigned char> config) {
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(str_view, "string initialized here");
   return std::format("{}{}error:{}{} string '{}' declared on line {} contains "
-                     "two or more adjacent wildcards.\n{}{}",
+                     "two or more adjacent wildcards.{}\n{}",
                      RED, BOLD, RESET, BOLD, istring.content, str_view.line_num,
                      RESET, rendered_view);
 }
@@ -786,7 +786,7 @@ ERecursiveVariable::render_error(std::vector<unsigned char> config) {
       ErrorRenderer::get_rendered_view(var_view, "recursive reference here");
   return std::format(
       "{}{}error:{}{} variable '{}' referred to on line {} contains "
-      "a recursive reference and cannot be initialized.\n{}{}",
+      "a recursive reference and cannot be initialized.{}\n{}",
       RED, BOLD, RESET, BOLD, identifier.content, var_view.line_num, RESET,
       rendered_view);
 }
@@ -806,7 +806,7 @@ std::string ERecursiveTask::render_error(std::vector<unsigned char> config) {
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(task_view, "task declared here");
   return std::format("{}{}error:{}{} task '{}' declared on line {} contains "
-                     "a recursive dependency and cannot be built.\n{}{}",
+                     "a recursive dependency and cannot be built.{}\n{}",
                      RED, BOLD, RESET, BOLD, dependency_value,
                      task_view.line_num, RESET, rendered_view);
 }
@@ -814,6 +814,53 @@ std::string ERecursiveTask::render_error(std::vector<unsigned char> config) {
 char const *ERecursiveTask::get_exception_msg() {
   return "Recursive task built";
 }
+
+EDuplicateIdentifier::EDuplicateIdentifier(Identifier identifier_1,
+                                           Identifier identifier_2) {
+  this->identifier_1 = identifier_1;
+  this->identifier_2 = identifier_2;
+}
+
+std::string
+EDuplicateIdentifier::render_error(std::vector<unsigned char> config) {
+  ReferenceView identifier_1_view =
+      ErrorRenderer::get_reference_view(config, identifier_1.reference);
+  ReferenceView identifier_2_view =
+      ErrorRenderer::get_reference_view(config, identifier_2.reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(
+      identifier_2_view, "duplicate initialization here");
+  return std::format(
+      "{}{}error:{}{} identifier '{}' originally defined on line {} contains a "
+      "duplicate definition on line {}.{}\n{}",
+      RED, BOLD, RESET, BOLD, identifier_1.content, identifier_1_view.line_num,
+      identifier_2_view.line_num, RESET, rendered_view);
+}
+
+char const *EDuplicateIdentifier::get_exception_msg() {
+  return "Duplicate identifier";
+}
+
+EDuplicateTask::EDuplicateTask(Task task_1, Task task_2, std::string key) {
+  this->task_1 = task_1;
+  this->task_2 = task_2;
+  this->key = key;
+}
+
+std::string EDuplicateTask::render_error(std::vector<unsigned char> config) {
+  ReferenceView task_1_view =
+      ErrorRenderer::get_reference_view(config, task_1.reference);
+  ReferenceView task_2_view =
+      ErrorRenderer::get_reference_view(config, task_2.reference);
+  std::string rendered_view = ErrorRenderer::get_rendered_view(
+      task_2_view, "duplicate initialization here");
+  return std::format(
+      "{}{}error:{}{} task originally defined on line {} contains a "
+      "duplicate definition on line {} for criteria '{}'.{}\n{}",
+      RED, BOLD, RESET, BOLD, task_1_view.line_num, task_2_view.line_num, key,
+      RESET, rendered_view);
+}
+
+char const *EDuplicateTask::get_exception_msg() { return "Duplicate task"; }
 
 std::unordered_map<size_t, std::shared_ptr<BuildError>>
     ErrorHandler::error_state = {};
@@ -887,6 +934,8 @@ template void ErrorHandler::halt<EInvalidEscapeCode>(EInvalidEscapeCode);
 template void ErrorHandler::halt<EAdjacentWildcards>(EAdjacentWildcards);
 template void ErrorHandler::halt<ERecursiveVariable>(ERecursiveVariable);
 template void ErrorHandler::halt<ERecursiveTask>(ERecursiveTask);
+template void ErrorHandler::halt<EDuplicateIdentifier>(EDuplicateIdentifier);
+template void ErrorHandler::halt<EDuplicateTask>(EDuplicateTask);
 template void
     ErrorHandler::soft_report<ENoMatchingIdentifier>(ENoMatchingIdentifier);
 template void ErrorHandler::soft_report<EInvalidSymbol>(EInvalidSymbol);
@@ -927,6 +976,9 @@ template void ErrorHandler::soft_report<EInvalidEscapeCode>(EInvalidEscapeCode);
 template void ErrorHandler::soft_report<EAdjacentWildcards>(EAdjacentWildcards);
 template void ErrorHandler::soft_report<ERecursiveVariable>(ERecursiveVariable);
 template void ErrorHandler::soft_report<ERecursiveTask>(ERecursiveTask);
+template void
+    ErrorHandler::soft_report<EDuplicateIdentifier>(EDuplicateIdentifier);
+template void ErrorHandler::soft_report<EDuplicateTask>(EDuplicateTask);
 template FrameGuard::FrameGuard(IdentifierEvaluateFrame);
 template FrameGuard::FrameGuard(EntryBuildFrame);
 template FrameGuard::FrameGuard(DependencyBuildFrame);

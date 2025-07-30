@@ -399,7 +399,7 @@ public:
   ERecursiveVariable(Identifier);
 };
 
-class ERecursiveTask: public BuildError {
+class ERecursiveTask : public BuildError {
 private:
   Task task;
   std::string dependency_value;
@@ -409,6 +409,30 @@ public:
   char const *get_exception_msg() override;
   ERecursiveTask() = delete;
   ERecursiveTask(Task, std::string);
+};
+
+class EDuplicateIdentifier : public BuildError {
+private:
+  Identifier identifier_1;
+  Identifier identifier_2;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  EDuplicateIdentifier() = delete;
+  EDuplicateIdentifier(Identifier, Identifier);
+};
+
+class EDuplicateTask : public BuildError {
+  Task task_1;
+  Task task_2;
+  std::string key;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  EDuplicateTask() = delete;
+  EDuplicateTask(Task, Task, std::string);
 };
 
 // api-facing error handler.

@@ -1,8 +1,9 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#include "tracking.hpp"
 #include "lexer.hpp"
+#include "tracking.hpp"
+#include <map>
 #include <memory>
 #include <string>
 #include <variant>
@@ -77,7 +78,7 @@ struct ASTVisitReference {
   }
 };
 
-// Config: Fields, tasks, AST
+// config: fields, tasks, ast
 struct Field {
   Identifier identifier;
   ASTObject expression;
@@ -88,20 +89,22 @@ struct Field {
 struct Task {
   ASTObject identifier;
   Identifier iterator;
-  std::vector<Field> fields;
+  std::map<std::string, Field> fields;
+  // std::vector<Field> fields;
   StreamReference reference;
   bool operator==(Task const &other) const;
   // Task() = delete;
 };
 struct AST {
-  std::vector<Field> fields;
+  std::map<std::string, Field> fields;
+  // tasks need to be precomputed before being stored in a tree.
   std::vector<Task> tasks;
+  std::optional<Task> topmost_task;
   // make the copy constructor explicit to emphasize performance.
   explicit AST(AST const &) = default;
   AST() = default;
 };
 
-// Work class
 class Parser {
 private:
   std::vector<Token> m_token_stream;

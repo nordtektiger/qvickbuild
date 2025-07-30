@@ -20,8 +20,7 @@ bool Boolean::operator==(Boolean const &other) const {
   return this->content == other.content;
 }
 bool Replace::operator==(Replace const &other) const {
-  return this->input == other.input &&
-         *(this->filter) == *(other.filter) &&
+  return this->input == other.input && *(this->filter) == *(other.filter) &&
          *(this->product) == *(other.product);
 }
 bool List::operator==(List const &other) const {
@@ -91,7 +90,11 @@ AST Parser::parse_tokens() {
   while (m_current) {
     std::optional<Field> field = parse_field();
     if (field) {
-      ast.fields.push_back(*field);
+      auto duplicate_it = ast.fields.find(field->identifier.content);
+      if (duplicate_it != ast.fields.end())
+        ErrorHandler::halt(EDuplicateIdentifier(duplicate_it->second.identifier,
+                                                field->identifier));
+      ast.fields[field->identifier.content] = *field;
       continue;
     }
     std::optional<Task> task = parse_task();
@@ -154,9 +157,14 @@ std::optional<Task> Parser::parse_task() {
     ErrorHandler::halt(ENoTaskOpen{reference});
 
   std::optional<Field> field;
-  std::vector<Field> fields;
-  while ((field = parse_field()))
-    fields.push_back(*field);
+  std::map<std::string, Field> fields;
+  while ((field = parse_field())) {
+    auto duplicate_it = fields.find(field->identifier.content);
+    if (duplicate_it != fields.end())
+      ErrorHandler::halt(EDuplicateIdentifier(duplicate_it->second.identifier,
+                                              field->identifier));
+    fields[field->identifier.content] = *field;
+  }
 
   if (!consume_if(TokenType::TaskClose))
     ErrorHandler::halt(ENoTaskClose{reference});

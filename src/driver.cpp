@@ -12,7 +12,9 @@
 #include <iostream>
 #include <iterator>
 
-Driver::Driver(Setup setup) { m_setup = setup; }
+Driver::Driver(Setup setup) {
+  this->state = std::make_unique<DriverState>(DriverState{setup});
+}
 
 Setup Driver::default_setup() {
   return Setup{std::nullopt, InputMethod::ConfigFile, "quickbuild",
@@ -20,11 +22,11 @@ Setup Driver::default_setup() {
 }
 
 std::vector<unsigned char> Driver::get_config() {
-  switch (m_setup.input_method) {
+  switch (this->state->setup.input_method) {
   case InputMethod::ConfigFile: {
-    std::ifstream config_file(m_setup.input_file, std::ios::binary);
+    std::ifstream config_file(this->state->setup.input_file, std::ios::binary);
     if (!config_file.is_open())
-      ErrorHandler::halt(EInvalidInputFile{m_setup.input_file});
+      ErrorHandler::halt(EInvalidInputFile{this->state->setup.input_file});
     return std::vector<unsigned char>(std::istreambuf_iterator(config_file),
                                       {});
   }
@@ -88,7 +90,7 @@ int Driver::run() {
     AST ast(parser.parse_tokens());
 
     // build task.
-    Interpreter interpreter(ast, m_setup);
+    Interpreter interpreter(ast, this->state->setup);
     interpreter.build();
 
   } catch (BuildException &_) {

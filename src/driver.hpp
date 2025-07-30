@@ -6,6 +6,7 @@ struct Setup;
 #include <optional>
 #include <string>
 #include <vector>
+#include <memory>
 
 enum class InputMethod {
   ConfigFile,
@@ -26,9 +27,14 @@ struct Setup {
   bool dry_run;
 };
 
+// temporary compatability patch for cli formatting.
+struct DriverState {
+  Setup setup;
+};
+
 class Driver {
 private:
-  Setup m_setup;
+  std::unique_ptr<DriverState> state;
   void unwind_errors(std::vector<unsigned char> config);
   std::vector<unsigned char> get_config();
 

@@ -9,8 +9,8 @@ headers = "./src/*.hpp";
 
 # files to create.
 objects = sources: "./src/*.cpp" -> "./obj/*.o";
-objects_release = objects;
 objects_debug = objects;
+# objects_release = objects;
 binary = "./bin/quickbuild";
 install_dir = "/usr/bin";
 
@@ -19,20 +19,20 @@ install_dir = "/usr/bin";
   depends = "setup", "build_objs_debug";
   run = "[compiler] [flags_debug] [objects] -o [binary]";
 }
-"quickbuild_release" {
-  depends = "setup", "build_objs_release";
-  run = "[compiler] [flags_release] [objects] -o [binary]";
-}
+# "quickbuild_release" {
+#   depends = "setup", "build_objs_release";
+#   run = "[compiler] [flags_release] [objects] -o [binary]";
+# }
 
 # abstract tasks for parallel object building.
 "build_objs_debug" {
-  depends = objects_release, headers;
-  depends_parallel = true;
-}
-"build_objs_release" {
   depends = objects_debug, headers;
   depends_parallel = true;
 }
+# "build_objs_release" {
+#   depends = objects_release, headers;
+#   depends_parallel = true;
+# }
 
 # setup for the build directories.
 "setup" {
@@ -48,12 +48,12 @@ objects_debug as obj {
   depends = obj_cpp, headers;
   run = "[compiler] [flags_debug] -c [obj_cpp] -o [obj]";
 }
-objects_release as obj {
-  # if a header is changed, everything needs to be rebuilt.
-  obj_cpp = obj: "./obj/*.o" -> "./src/*.cpp";
-  depends = obj_cpp, headers;
-  run = "[compiler] [flags_release] -c [obj_cpp] -o [obj]";
-}
+# objects_release as obj {
+#   # if a header is changed, everything needs to be rebuilt.
+#   obj_cpp = obj: "./obj/*.o" -> "./src/*.cpp";
+#   depends = obj_cpp, headers;
+#   run = "[compiler] [flags_release] -c [obj_cpp] -o [obj]";
+# }
 
 # binary install.
 "install" {
