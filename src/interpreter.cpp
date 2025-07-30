@@ -109,7 +109,7 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
 
   // check whether we're shooting ourselves and the stack in the foot.
   bool recursive = StaticVerify::find_recursive_variable(
-      ContextStack::export_local_stack(), identifier.content);
+      ContextStack::dump_flattened_stack(), identifier.content);
   if (recursive)
     ErrorHandler::halt(ERecursiveVariable{identifier});
 
@@ -568,9 +568,10 @@ DependencyStatus Interpreter::solve_dependencies(IValue dependencies,
 }
 
 void Interpreter::run_task(Task task, std::string task_iteration) {
+
   // check for recursive dependencies.
   bool recursive = StaticVerify::find_recursive_task(
-      ContextStack::export_local_stack(), task_iteration);
+      ContextStack::dump_flattened_stack(), task_iteration);
   if (recursive)
     ErrorHandler::halt(ERecursiveTask{task, task_iteration});
 

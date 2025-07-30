@@ -517,6 +517,7 @@ private:
 public:
   static std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>>
   dump_stack();
+  static std::vector<std::shared_ptr<Frame>> dump_flattened_stack();
   static std::vector<std::shared_ptr<Frame>> export_local_stack();
   static void import_local_stack(std::vector<std::shared_ptr<Frame>>);
 
