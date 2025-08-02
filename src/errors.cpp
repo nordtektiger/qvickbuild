@@ -14,10 +14,20 @@
 std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>>
     ContextStack::stack = {};
 std::mutex ContextStack::stack_lock;
-bool ContextStack::frozen = false;
+std::unordered_map<size_t, bool> ContextStack::frozen = {};
 
-void ContextStack::freeze() { ContextStack::frozen = true; }
-bool ContextStack::is_frozen() { return ContextStack::frozen; }
+void ContextStack::freeze() {
+  std::thread::id thread_id = std::this_thread::get_id();
+  size_t thread_hash = std::hash<std::thread::id>{}(thread_id);
+  std::unique_lock<std::mutex> guard(ContextStack::stack_lock);
+  ContextStack::frozen[thread_hash] = true;
+}
+bool ContextStack::is_frozen() {
+  std::thread::id thread_id = std::this_thread::get_id();
+  size_t thread_hash = std::hash<std::thread::id>{}(thread_id);
+  std::unique_lock<std::mutex> guard(ContextStack::stack_lock);
+  return ContextStack::frozen[thread_hash];
+}
 std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>>
 ContextStack::dump_stack() {
   return stack;

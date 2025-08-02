@@ -510,9 +510,9 @@ class ContextStack {
 
 private:
   // thread hash, frames
-  static std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>> stack;
   static std::mutex stack_lock;
-  static bool frozen;
+  static std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>> stack;
+  static std::unordered_map<size_t, bool> frozen;
 
 public:
   static std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>>

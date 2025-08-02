@@ -44,7 +44,7 @@ install_dir = "/usr/bin";
 # object files.
 objects_debug as obj {
   # if a header is changed, everything needs to be rebuilt.
-  obj_cpp = obj: "./obj/release/*.o" -> "./src/*.cpp";
+  obj_cpp = obj: "./obj/debug/*.o" -> "./src/*.cpp";
   depends = obj_cpp, headers;
   run = "[compiler] [flags_debug] -c [obj_cpp] -o [obj]";
 }
