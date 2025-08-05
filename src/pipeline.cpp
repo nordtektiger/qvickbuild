@@ -29,21 +29,19 @@ void Pipeline::push_to_queue(std::shared_ptr<PipelineTask> task_ptr) {
 
 void Pipeline::pipeline_worker() {
   for (;;) {
-    std::cerr << "thread awaiting work" << std::endl;
     // retrieve pending task.
     Pipeline::queue_notifier.acquire();
-    std::cerr << "thread notified" << std::endl;
     if (Pipeline::stop_pipeline) {
       Pipeline::queue_notifier.release(); // pass onto next thread.
       return;
     }
-    std::cerr << "thread loading work" << std::endl;
     std::unique_lock<std::mutex> guard(Pipeline::queue_lock);
     std::shared_ptr<PipelineTask> task = Pipeline::task_queue[0];
     Pipeline::task_queue.erase(Pipeline::task_queue.begin());
-    guard.release();
+    guard.unlock();
 
     // execute work.
+    task->compute();
 
     // notify waiting thread.
     task->notifier.release();

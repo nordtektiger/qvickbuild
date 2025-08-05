@@ -76,9 +76,6 @@ int Driver::run() {
   // initialize required subsystems.
   Pipeline::initialize(std::thread::hardware_concurrency());
 
-  auto build_task = std::make_shared<PipelineTasks::BuildTask>();
-  Pipeline::push_to_queue(build_task);
-
   // config needs to be initialized out of scope so that
   // it can be read when unwinding the error stack.
   LOG_STANDARD("⧗ compiling config...");

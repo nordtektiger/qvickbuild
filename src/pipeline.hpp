@@ -23,23 +23,18 @@ private:
 public:
   PipelineTask() : notifier{0} {};
 
-  virtual PipelineTaskModel get_model() = 0;
+  virtual void compute() = 0;
   void await_completion();
 };
 
 namespace PipelineTasks {
 class BuildTask : public PipelineTask {
 public:
-  PipelineTaskModel get_model() override {
-    return PipelineTaskModel::BuildTask;
-  }
   BuildTask() = default;
+  void compute() {}
 };
 class ExecuteString : public PipelineTask {
 public:
-  PipelineTaskModel get_model() override {
-    return PipelineTaskModel::ExecuteString;
-  }
 };
 } // namespace PipelineTasks
 
