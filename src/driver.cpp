@@ -4,6 +4,7 @@
 #include "interpreter.hpp"
 #include "lexer.hpp"
 #include "parser.hpp"
+#include "pipeline.hpp"
 
 #include <cassert>
 #include <format>
@@ -11,6 +12,7 @@
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <thread>
 
 Driver::Driver(Setup setup) {
   this->state = std::make_unique<DriverState>(DriverState{setup});
@@ -71,6 +73,12 @@ void Driver::unwind_errors(std::vector<unsigned char> config) {
 int Driver::run() {
   LOG_STANDARD(BOLD << "[ quickbuild dev v0.8.0 ]" << RESET);
 
+  // initialize required subsystems.
+  Pipeline::initialize(std::thread::hardware_concurrency());
+
+  auto build_task = std::make_shared<PipelineTasks::BuildTask>();
+  Pipeline::push_to_queue(build_task);
+
   // config needs to be initialized out of scope so that
   // it can be read when unwinding the error stack.
   LOG_STANDARD("⧗ compiling config...");
@@ -94,6 +102,7 @@ int Driver::run() {
     interpreter.build();
 
   } catch (BuildException &_) {
+    Pipeline::stop();
     unwind_errors(config);
     LOG_STANDARD("");
     LOG_STANDARD("➤ build " << RED << "failed" << RESET);
@@ -101,5 +110,9 @@ int Driver::run() {
   }
 
   LOG_STANDARD("➤ build completed");
+
+  // shut down required subsystems.
+  Pipeline::stop();
+
   return EXIT_SUCCESS;
 }
