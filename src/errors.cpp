@@ -34,6 +34,7 @@ ContextStack::dump_stack() {
 }
 std::vector<std::shared_ptr<Frame>>
 ContextStack::dump_flattened_stack() {
+  std::unique_lock<std::mutex> guard(ContextStack::stack_lock);
   std::vector<std::shared_ptr<Frame>> flattened_stack;
   for (auto [_thead_hash, context_stack] : stack) {
     flattened_stack.insert(flattened_stack.end(), context_stack.begin(),

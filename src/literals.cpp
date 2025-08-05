@@ -28,7 +28,9 @@ std::vector<StrComponent> Wildcards::tokenize_components(std::string in) {
         parsed.push_back(str_buf);
         str_buf = "";
       }
-      parsed.push_back(Wildcard{});
+      // extra variable initialisation here to simply stop gcc from yelling.
+      StrComponent wildcard = Wildcard{};
+      parsed.push_back(wildcard);
     } else {
       str_buf += in[i];
     }
@@ -85,7 +87,8 @@ Wildcards::match_components(std::vector<StrComponent> filter, std::string in) {
       for (size_t i_seg = 0;
            i_seg < in.size() - i_str - str_component.size() + 1; i_seg++) {
         if (in.substr(i_str + i_seg, str_component.size()) == str_component) {
-          if (i_comp == filter.size() - 2 && i_str + i_seg + str_component.size() < in.size())
+          if (i_comp == filter.size() - 2 &&
+              i_str + i_seg + str_component.size() < in.size())
             continue;
           seg_match = true;
           output.push_back(in.substr(i_str, i_seg));
