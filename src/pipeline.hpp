@@ -15,31 +15,36 @@ enum class PipelineTaskModel {
 
 class PipelineTask {
   friend class Pipeline;
-  friend class PipelineScheduler;
+  template <typename M> friend class PipelineScheduler;
 
 private:
   std::binary_semaphore notifier;
+  std::atomic_bool error;
 
 public:
   PipelineTask() : notifier{0} {};
 
-  virtual void compute() = 0;
+  virtual void compute() noexcept = 0;
   void await_completion();
+
+  void report_error();
+  bool had_error();
 };
 
 namespace PipelineTasks {
 class BuildTask : public PipelineTask {
 public:
   BuildTask() = default;
-  void compute() {}
+  void compute() noexcept;
 };
 class ExecuteString : public PipelineTask {
 public:
+  void compute() noexcept;
 };
 } // namespace PipelineTasks
 
 class Pipeline {
-  friend class PipelineScheduler;
+  template <typename M> friend class PipelineScheduler;
 
 private:
   static std::vector<std::thread> thread_pool;
@@ -49,25 +54,30 @@ private:
   static std::vector<std::shared_ptr<PipelineTask>> task_queue;
   static std::counting_semaphore<INT_MAX> queue_notifier;
 
-  static void pipeline_worker();
+  static void pool_loop();
+  static void task_compute(std::shared_ptr<PipelineTask>);
 
 public:
   static void push_to_queue(std::shared_ptr<PipelineTask>);
+  static void execute_unbound(std::shared_ptr<PipelineTask>);
   static void initialize(size_t);
   static void stop();
 };
 
-enum class PipelineSchedulingMode {
-  Synchronous,
-  Parallel,
-};
+namespace PipelineSchedulingMode {
+struct SynchronousManaged {};
+struct SynchronousUnbound {};
+struct ParallelManaged {};
+struct ParallelUnbound {};
+}; // namespace PipelineSchedulingMode
 
-class PipelineScheduler {
+template <typename M> class PipelineScheduler {
 private:
-  PipelineSchedulingMode scheduling_mode;
+  M scheduling_mode;
+  std::vector<std::shared_ptr<PipelineTask>> buffer;
 
 public:
-  void schedule_task(std::shared_ptr<PipelineTask> task_ptr);
+  void schedule_task(std::shared_ptr<PipelineTask>);
   void send_and_await();
 };
 
