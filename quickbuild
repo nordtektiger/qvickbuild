@@ -26,11 +26,13 @@ install_dir = "/usr/bin";
 # abstract tasks for parallel object building.
 "build_objs_debug" {
   depends = objects_debug, headers;
-  depends_parallel = true;
+  # depends_parallel = true;
+  depends_parallel = false;
 }
 "build_objs_release" {
   depends = objects_release, headers;
-  depends_parallel = true;
+  # depends_parallel = true;
+  depends_parallel = false;
 }
 
 # setup for the build directories.
