@@ -8,12 +8,9 @@ std::vector<std::string> Globbing::compute_paths(std::string literal) {
   std::vector<std::string> paths;
   for (std::filesystem::directory_entry const &dir_entry :
        std::filesystem::recursive_directory_iterator(".")) {
-    try {
-      Wildcards::match_components(filter, dir_entry.path().string());
+    auto match = Wildcards::match_components(filter, dir_entry.path().string());
+    if (match)
       paths.push_back(dir_entry.path().string());
-    } catch (Wildcards::__MatchFailure &_) {
-      continue;
-    }
   }
   return paths;
 }
@@ -42,7 +39,7 @@ std::vector<StrComponent> Wildcards::tokenize_components(std::string in) {
   return parsed;
 }
 
-std::vector<std::string>
+std::optional<std::vector<std::string>>
 Wildcards::match_components(std::vector<StrComponent> filter, std::string in) {
   size_t i_str = 0; // index of input string
   bool matches = true;
@@ -107,7 +104,7 @@ Wildcards::match_components(std::vector<StrComponent> filter, std::string in) {
   }
 
   if (!matches)
-    throw __MatchFailure();
+    return std::nullopt;
   else
     return output;
 }
@@ -132,24 +129,23 @@ Wildcards::compute_replace(std::vector<std::string> data, std::string filter,
     throw LiteralsChunksLength{};
 
   for (const std::string &element : data) {
-    try {
-      std::vector<std::string> wildcard_groups =
-          match_components(filter_components, element);
-      // weave wildcard with product strcomponents
-      std::string final_str;
-      for (const StrComponent &component : product_components) {
-        if (std::holds_alternative<std::string>(component))
-          final_str += std::get<std::string>(component);
-        else { // wildcard
-          final_str += *wildcard_groups.begin();
-          wildcard_groups.erase(wildcard_groups.begin());
-        }
-      }
-      output.push_back(final_str);
-    } catch (__MatchFailure &_) {
-      // did not match.
+    std::optional<std::vector<std::string>> wildcard_groups =
+        match_components(filter_components, element);
+    if (!wildcard_groups) {
       output.push_back(element);
+      continue;
     }
+    // weave wildcard with product strcomponents
+    std::string final_str;
+    for (const StrComponent &component : product_components) {
+      if (std::holds_alternative<std::string>(component))
+        final_str += std::get<std::string>(component);
+      else { // wildcard
+        final_str += *wildcard_groups->begin();
+        wildcard_groups->erase(wildcard_groups->begin());
+      }
+    }
+    output.push_back(final_str);
   }
   return output;
 }

@@ -4,7 +4,7 @@
 #include <string>
 #include <variant>
 #include <vector>
-
+#include <optional>
 
 class Globbing {
 public:
@@ -21,10 +21,8 @@ class Wildcards {
 private:
   static std::vector<StrComponent> tokenize_components(std::string);
   // returns wildcard groups
-  static std::vector<std::string> match_components(std::vector<StrComponent>,
+  static std::optional<std::vector<std::string>> match_components(std::vector<StrComponent>,
                                                    std::string);
-  // internal error type to communicate the failure of the function above.
-  class __MatchFailure : std::exception {};
 
 public:
   static std::vector<std::string> compute_replace(std::vector<std::string>,
