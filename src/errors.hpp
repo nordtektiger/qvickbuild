@@ -6,8 +6,6 @@ class BuildError;
 class Frame;
 
 #include "interpreter.hpp"
-#include "lexer.hpp"
-#include "oslayer.hpp"
 #include "parser.hpp"
 #include "tracking.hpp"
 #include <map>
@@ -25,8 +23,11 @@ public:
   static std::string get_rendered_view(ReferenceView reference_view,
                                        std::string msg);
   static std::string prefix_rendered_view(std::string view, std::string prefix);
+  template <typename T>
   static std::string
-      stringify_type(std::variant<ASTObject, IValue, IString, IBool, IList>);
+      stringify_type(T); /* std::variant<ASTObject, IValue, IString, IBool,
+                                  IList<IString>, IList<IBool>>,
+                     std::variant<IList<IString>, IList<IBool>>); */
 };
 
 struct ReferenceView {
@@ -56,14 +57,14 @@ public:
 
 class EListTypeMismatch : public BuildError {
 private:
-  IList list;
+  std::variant<IList<IString>, IList<IBool>> list;
   IValue faulty_ivalue;
 
 public:
   std::string render_error(std::vector<unsigned char> config) override;
   char const *get_exception_msg() override;
   EListTypeMismatch() = delete;
-  EListTypeMismatch(IList, IValue);
+  EListTypeMismatch(std::variant<IList<IString>, IList<IBool>>, IValue);
 };
 
 class EReplaceTypeMismatch : public BuildError {

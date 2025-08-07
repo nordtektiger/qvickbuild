@@ -3,61 +3,62 @@
 
 struct IString;
 struct IBool;
-struct IList;
-struct IValue;
+template <typename T> struct IList;
+#include <variant>
+using IValue = std::variant<IString, IBool, IList<IString>, IList<IBool>>;
 
 #include "driver.hpp"
 #include "parser.hpp"
 #include "tracking.hpp"
 #include <mutex>
-#include <variant>
 #include <vector>
 
-struct IString {
+struct ICoreType {
+  bool immutable;
+  ICoreType() = delete;
+  ICoreType(bool immutable) : immutable(immutable) {};
+};
+
+struct IString : public ICoreType {
   StreamReference reference;
   std::string content;
 
-  std::string toString() const;
+  std::string to_string() const;
   IString() = delete;
-  IString(Token);
-  IString(std::string, StreamReference);
+  IString(Token, bool);
+  IString(std::string, StreamReference, bool);
   bool operator==(IString const other) const;
 };
 
-struct IBool {
+struct IBool : public ICoreType {
   StreamReference reference;
   bool content;
   IBool() = delete;
-  IBool(Token);
-  IBool(bool, StreamReference);
+  IBool(Token, bool);
+  IBool(bool, StreamReference, bool);
   operator bool() const;
   bool operator==(IBool const other) const;
 };
 
-#define ILIST_STR 0
-#define ILIST_BOOL 1
-
-struct IList {
+template <typename T> struct IList : public ICoreType {
   StreamReference reference;
-  std::variant<std::vector<IString>, std::vector<IBool>> contents;
-  bool holds_istring() const;
-  bool holds_ibool() const;
+  std::vector<T> contents;
   IList() = delete;
-  IList(std::variant<std::vector<IString>, std::vector<IBool>>,
-        StreamReference reference);
+  IList(std::vector<T>, StreamReference reference, bool);
   bool operator==(IList const other) const;
 };
 
-struct IValue {
-  std::variant<IString, IBool, IList> data;
-  bool immutable = true;
-  // IValue() = delete; // todo: consider implementation
-};
+// struct IValue : public ICoreType {
+//   std::variant<IString, IBool, IList<IString>, IList<IBool>> data;
+//   bool immutable = true;
+//   // IValue() = delete; // todo: consider implementation
+// };
 
 struct IVisitReference {
   StreamReference operator()(IString istring) { return istring.reference; };
   StreamReference operator()(IBool ibool) { return ibool.reference; };
-  StreamReference operator()(IList ilist) { return ilist.reference; };
+  StreamReference operator()(IList<IString> ilist) { return ilist.reference; };
+  StreamReference operator()(IList<IBool> ilist) { return ilist.reference; };
 };
 
 struct EvaluationContext {
@@ -98,9 +99,18 @@ private:
                                   std::optional<Task> task);
   std::optional<IValue> evaluate_field_optional(std::string identifier,
                                                 EvaluationContext context);
+  template <typename T>
+  std::optional<T> evaluate_field_optional_strict(std::string identifier,
+                                                  EvaluationContext context);
   std::optional<IValue>
   evaluate_field_default(std::string identifier, EvaluationContext context,
                          std::optional<IValue> default_value);
+  template <typename T>
+  std::optional<T>
+  evaluate_field_default_strict(std::string identifier,
+                                EvaluationContext context,
+                                std::optional<T> default_value);
+
   void t_run_task(Task task, std::string task_iteration,
                   std::shared_ptr<std::atomic<bool>> error,
                   std::vector<std::shared_ptr<Frame>> local_stack);

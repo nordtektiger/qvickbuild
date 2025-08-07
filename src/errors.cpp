@@ -32,8 +32,7 @@ std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>>
 ContextStack::dump_stack() {
   return stack;
 }
-std::vector<std::shared_ptr<Frame>>
-ContextStack::dump_flattened_stack() {
+std::vector<std::shared_ptr<Frame>> ContextStack::dump_flattened_stack() {
   std::unique_lock<std::mutex> guard(ContextStack::stack_lock);
   std::vector<std::shared_ptr<Frame>> flattened_stack;
   for (auto [_thead_hash, context_stack] : stack) {
@@ -196,56 +195,65 @@ std::string ErrorRenderer::prefix_rendered_view(std::string view,
   return out;
 }
 
-std::string ErrorRenderer::stringify_type(
-    std::variant<ASTObject, IValue, IString, IBool, IList> object) {
-  if (std::holds_alternative<ASTObject>(object)) {
-    ASTObject ast_object = std::get<ASTObject>(object);
-    if (std::holds_alternative<Identifier>(ast_object)) {
-      return "variable<?>";
-    } else if (std::holds_alternative<Literal>(ast_object)) {
-      return "string";
-    } else if (std::holds_alternative<FormattedLiteral>(ast_object)) {
-      return "string";
-    } else if (std::holds_alternative<List>(ast_object)) {
-      return "list<?>";
-    } else if (std::holds_alternative<Boolean>(ast_object)) {
-      return "bool";
-    } else if (std::holds_alternative<Replace>(ast_object)) {
-      return "string";
-    } else {
-      assert(false && "attempt to stringify nonexistent type");
-    }
-  } else if (std::holds_alternative<IValue>(object)) {
-    IValue ivalue = std::get<IValue>(object);
-    if (std::holds_alternative<IString>(ivalue.data)) {
-      return "string";
-    } else if (std::holds_alternative<IBool>(ivalue.data)) {
-      return "bool";
-    } else if (std::holds_alternative<IList>(ivalue.data)) {
-      IList list = std::get<IList>(ivalue.data);
-      if (list.holds_istring())
-        return "list<string>";
-      else if (list.holds_ibool())
-        return "list<bool>";
-      else {
-        assert(false && "attempt to stringify nonexistent type");
-      }
-    } else {
-      assert(false && "attempt to stringify nonexistent type");
-    }
-  } else if (std::holds_alternative<IString>(object)) {
+template <>
+std::string ErrorRenderer::stringify_type<ASTObject>(ASTObject type) {
+  if (std::holds_alternative<Identifier>(type)) {
+    return "variable<?>";
+  } else if (std::holds_alternative<Literal>(type)) {
     return "string";
-  } else if (std::holds_alternative<IBool>(object)) {
+  } else if (std::holds_alternative<FormattedLiteral>(type)) {
+    return "string";
+  } else if (std::holds_alternative<List>(type)) {
+    return "list<?>";
+  } else if (std::holds_alternative<Boolean>(type)) {
     return "bool";
-  } else if (std::holds_alternative<IList>(object)) {
-    IList list = std::get<IList>(object);
-    if (list.holds_istring())
-      return "list<string>";
-    else if (list.holds_ibool())
-      return "list<bool>";
-    else {
-      assert(false && "attempt to stringify nonexistent type");
-    }
+  } else if (std::holds_alternative<Replace>(type)) {
+    return "string";
+  } else {
+    assert(false && "attempt to stringify nonexistent type");
+  }
+}
+
+template <> std::string ErrorRenderer::stringify_type<IValue>(IValue type) {
+  if (std::holds_alternative<IString>(type)) {
+    return "string";
+  } else if (std::holds_alternative<IBool>(type)) {
+    return "bool";
+  } else if (std::holds_alternative<IList<IString>>(type)) {
+    return "list<string>";
+  } else if (std::holds_alternative<IList<IBool>>(type)) {
+    return "list<bool>";
+  } else {
+    assert(false && "attempt to stringify nonexistent type");
+  }
+}
+
+template <> std::string ErrorRenderer::stringify_type<IString>(IString) {
+  return "string";
+}
+
+template <> std::string ErrorRenderer::stringify_type<IBool>(IBool) {
+  return "bool";
+}
+
+template <>
+std::string ErrorRenderer::stringify_type<IList<IString>>(IList<IString>) {
+  return "list<string>";
+}
+
+template <>
+std::string ErrorRenderer::stringify_type<IList<IBool>>(IList<IBool>) {
+  return "list<bool>";
+}
+
+template <>
+std::string
+ErrorRenderer::stringify_type<std::variant<IList<IString>, IList<IBool>>>(
+    std::variant<IList<IString>, IList<IBool>> type) {
+  if (std::holds_alternative<IList<IString>>(type)) {
+    return "list<string>";
+  } else if (std::holds_alternative<IList<IBool>>(type)) {
+    return "list<bool>";
   } else {
     assert(false && "attempt to stringify nonexistent type");
   }
@@ -273,12 +281,13 @@ char const *ENoMatchingIdentifier::get_exception_msg() {
   return "No matching identifier";
 }
 
-EListTypeMismatch::EListTypeMismatch(IList list, IValue ivalue)
+EListTypeMismatch::EListTypeMismatch(
+    std::variant<IList<IString>, IList<IBool>> list, IValue ivalue)
     : list(list), faulty_ivalue(ivalue) {}
 
 std::string EListTypeMismatch::render_error(std::vector<unsigned char> config) {
   ReferenceView obj_view = ErrorRenderer::get_reference_view(
-      config, std::visit(IVisitReference{}, faulty_ivalue.data));
+      config, std::visit(IVisitReference{}, faulty_ivalue));
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(obj_view, "faulty type here");
   return std::format("{}{}error:{}{} an item of type '{}' cannot be stored in "
@@ -301,7 +310,7 @@ EReplaceTypeMismatch::EReplaceTypeMismatch(Replace replace,
 std::string
 EReplaceTypeMismatch::render_error(std::vector<unsigned char> config) {
   ReferenceView obj_view = ErrorRenderer::get_reference_view(
-      config, std::visit(IVisitReference{}, faulty_ivalue.data));
+      config, std::visit(IVisitReference{}, faulty_ivalue));
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(obj_view, "faulty type here");
   return std::format("{}{}error:{}{} the replacement operator can only operate "
@@ -318,7 +327,7 @@ EReplaceChunksLength::EReplaceChunksLength(IValue replacement)
 
 std::string
 EReplaceChunksLength::render_error(std::vector<unsigned char> config) {
-  StreamReference ref = std::visit(IVisitReference{}, replacement.data);
+  StreamReference ref = std::visit(IVisitReference{}, replacement);
   ReferenceView repl_view = ErrorRenderer::get_reference_view(config, ref);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(repl_view, "too many wildcards here");
@@ -340,7 +349,7 @@ EVariableTypeMismatch::EVariableTypeMismatch(IValue variable,
 
 std::string
 EVariableTypeMismatch::render_error(std::vector<unsigned char> config) {
-  StreamReference var_ref = std::visit(IVisitReference{}, variable.data);
+  StreamReference var_ref = std::visit(IVisitReference{}, variable);
   ReferenceView var_view = ErrorRenderer::get_reference_view(config, var_ref);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(var_view, "variable defined here");
@@ -439,7 +448,7 @@ EDependencyFailed::EDependencyFailed(IValue dep, std::string dependency_value)
 }
 
 std::string EDependencyFailed::render_error(std::vector<unsigned char> config) {
-  StreamReference ref = std::visit(IVisitReference{}, dependency.data);
+  StreamReference ref = std::visit(IVisitReference{}, dependency);
   ReferenceView dep_view = ErrorRenderer::get_reference_view(config, ref);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(dep_view, "dependency referred to here");
@@ -1002,43 +1011,3 @@ template void ErrorHandler::soft_report<EDuplicateTask>(EDuplicateTask);
 template FrameGuard::FrameGuard(IdentifierEvaluateFrame);
 template FrameGuard::FrameGuard(EntryBuildFrame);
 template FrameGuard::FrameGuard(DependencyBuildFrame);
-
-//
-// ErrorContext::ErrorContext(Origin const &origin) {
-//   if (std::holds_alternative<InputStreamPos>(origin)) {
-//     this->stream_pos = std::get<InputStreamPos>(origin);
-//     this->ref = std::nullopt;
-//   } else if (std::holds_alternative<ObjectReference>(origin)) {
-//     this->stream_pos = std::nullopt;
-//     this->ref = std::get<ObjectReference>(origin);
-//   } else {
-//     this->stream_pos = std::nullopt;
-//     this->ref = std::nullopt;
-//   }
-// }
-//
-// ErrorContext::ErrorContext(InternalNode const &) {
-//   this->stream_pos = std::nullopt;
-//   this->ref = std::nullopt;
-// }
-//
-// ErrorContext::ErrorContext(ObjectReference const &ref) {
-//   this->stream_pos = std::nullopt;
-//   this->ref = ref;
-// }
-//
-// ErrorContext::ErrorContext(Origin const &origin, ObjectReference const
-// &ref)
-// {
-//   if (std::holds_alternative<InputStreamPos>(origin)) {
-//     this->stream_pos = std::get<InputStreamPos>(origin);
-//     this->ref = std::nullopt;
-//   } else if (std::holds_alternative<ObjectReference>(origin)) {
-//     this->stream_pos = std::nullopt;
-//     this->ref = std::get<ObjectReference>(origin);
-//   } else {
-//     this->stream_pos = std::nullopt;
-//     this->ref = std::nullopt;
-//   }
-//   this->ref = ref;
-// }

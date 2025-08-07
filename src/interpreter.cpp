@@ -6,11 +6,13 @@
 #include "oslayer.hpp"
 #include "static_verify.hpp"
 #include "tracking.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <filesystem>
 #include <memory>
+#include <ranges>
 #include <thread>
 
 #define DEPENDS "depends"
@@ -18,29 +20,84 @@
 #define RUN "run"
 #define RUN_PARALLEL "run_parallel"
 
+#define IMMUTABLE true
+#define MUTABLE false
+
+template <typename T> bool is_immutable(T);
+template <typename T> T autocast_strict(IValue);
+
+template <> bool is_immutable(IValue value) {
+  if (std::holds_alternative<IString>(value))
+    return std::get<IString>(value).immutable;
+  else if (std::holds_alternative<IBool>(value))
+    return std::get<IBool>(value).immutable;
+  else if (std::holds_alternative<IList<IString>>(value))
+    return std::get<IList<IString>>(value).immutable;
+  else if (std::holds_alternative<IList<IBool>>(value))
+    return std::get<IList<IBool>>(value).immutable;
+  assert(false && "invalid type for immutability checking");
+}
+
+template <> IList<IString> autocast_strict(IValue in) {
+  if (std::holds_alternative<IList<IString>>(in))
+    return std::get<IList<IString>>(in);
+  else if (std::holds_alternative<IString>(in)) {
+    return IList<IString>{{std::get<IString>(in)},
+                          std::get<IString>(in).reference,
+                          is_immutable(in)};
+  }
+  ErrorHandler::halt(EVariableTypeMismatch{in, "string or list<string>"});
+}
+
+template <> IString autocast_strict(IValue in) {
+  if (std::holds_alternative<IString>(in))
+    return std::get<IString>(in);
+  ErrorHandler::halt(EVariableTypeMismatch{in, "string"});
+}
+
+template <> IList<IBool> autocast_strict(IValue in) {
+  if (std::holds_alternative<IList<IBool>>(in))
+    return std::get<IList<IBool>>(in);
+  else if (std::holds_alternative<IBool>(in)) {
+    return IList<IBool>{
+        {std::get<IBool>(in)}, std::get<IBool>(in).reference, is_immutable(in)};
+  }
+  ErrorHandler::halt(EVariableTypeMismatch{in, "bool or list<bool>"});
+}
+
+// template <typename T> bool is_immutable(T value) { return value.immutable; }
+
+template <> IBool autocast_strict(IValue in) {
+  if (std::holds_alternative<IBool>(in))
+    return std::get<IBool>(in);
+  ErrorHandler::halt(EVariableTypeMismatch{in, "bool"});
+}
+
 // constructors & casts for internal data types.
-IString::IString(Token token) {
+IString::IString(Token token, bool immutable) : ICoreType(immutable) {
   assert(token.type == TokenType::Literal &&
          "attempt to construct IString from non-literal token");
   this->reference = token.reference;
   this->content = std::get<CTX_STR>(*token.context);
 };
-IString::IString(std::string content, StreamReference reference) {
+IString::IString(std::string content, StreamReference reference, bool immutable)
+    : ICoreType(immutable) {
   this->reference = reference;
   this->content = content;
 }
-std::string IString::toString() const { return (this->content); };
+std::string IString::to_string() const { return (this->content); };
 bool IString::operator==(IString const other) const {
   return this->content == other.content;
 }
 
-IBool::IBool(Token token) {
+IBool::IBool(Token token, bool immutable) : ICoreType(immutable) {
   assert((token.type == TokenType::True || token.type == TokenType::False) &&
          "attempt to construct IBool from non-boolean token");
   this->reference = token.reference;
   this->content = (token.type == TokenType::True);
 }
-IBool::IBool(bool content, StreamReference reference) {
+IBool::IBool(bool content, StreamReference reference, bool immutable)
+    : ICoreType(immutable) {
   this->reference = reference;
   this->content = content;
 }
@@ -49,26 +106,15 @@ bool IBool::operator==(IBool const other) const {
 }
 IBool::operator bool() const { return (this->content); };
 
-IList::IList(std::variant<std::vector<IString>, std::vector<IBool>> contents,
-             StreamReference reference) {
-  if (std::holds_alternative<std::vector<IString>>(contents)) {
-    std::vector<IString> contents_istring =
-        std::get<std::vector<IString>>(contents);
-    this->contents = contents_istring;
-    this->reference = reference;
-  } else if (std::holds_alternative<std::vector<IBool>>(contents)) {
-    std::vector<IBool> contents_ibool = std::get<std::vector<IBool>>(contents);
-    this->contents = contents_ibool;
-    this->reference = reference;
-  }
+template <typename T>
+IList<T>::IList(std::vector<T> contents, StreamReference reference,
+                bool immutable)
+    : ICoreType(immutable) {
+  this->contents = contents;
+  this->reference = reference;
 }
-bool IList::holds_istring() const {
-  return (this->contents.index() == ILIST_STR);
-}
-bool IList::holds_ibool() const {
-  return (this->contents.index() == ILIST_BOOL);
-}
-bool IList::operator==(IList const other) const {
+
+template <typename T> bool IList<T>::operator==(IList const other) const {
   return this->contents == other.contents;
 }
 
@@ -134,7 +180,7 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
     if (local_it != this->context.task_scope->fields.end()) {
       ASTEvaluate ast_visitor = {id_context, state};
       IValue result = std::visit(ast_visitor, local_it->second.expression);
-      if (result.immutable)
+      if (is_immutable(result))
         state->cached_variables.push_back(
             ValueInstance{identifier, id_context, result});
       return result;
@@ -144,8 +190,8 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
   // task iteration variable - this isn't cached for obvious reasons.
   if (context.task_iteration && context.task_scope)
     if (context.task_scope->iterator.content == identifier.content)
-      return {IString(*context.task_iteration, context.task_scope->reference),
-              false};
+      return IString(*context.task_iteration, context.task_scope->reference,
+                     MUTABLE);
 
   // global fields.
   auto global_it = this->state->ast->fields.find(identifier.content);
@@ -156,7 +202,7 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
     // allow globbing: see comment above.
     EvaluationContext _context =
         EvaluationContext{std::nullopt, std::nullopt, true};
-    if (result.immutable)
+    if (is_immutable(result))
       state->cached_variables.push_back(
           ValueInstance{identifier, _context, result});
     return result;
@@ -167,11 +213,11 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
 
 // note: we handle globbing **after** evaluating a formatted literal.
 IValue ASTEvaluate::operator()(Literal const &literal) {
-  return {IString(literal.content, literal.reference)};
+  return IString(literal.content, literal.reference, IMMUTABLE);
 }
 
 // helper method: handles globbing.
-IValue expand_literal(IString input_istring, bool immutable) {
+IValue expand_literal(IString input_istring) {
   size_t i_asterisk = input_istring.content.find('*');
   if (i_asterisk == std::string::npos) // no globbing.
     return {input_istring};
@@ -187,12 +233,13 @@ IValue expand_literal(IString input_istring, bool immutable) {
   // convert to interpreter strings.
   std::vector<IString> contents;
   for (const std::string &str : paths) {
-    contents.push_back(IString{str, input_istring.reference});
+    contents.push_back(
+        IString{str, input_istring.reference, input_istring.immutable});
   }
 
   if (contents.size() == 1)
     return {contents[0]};
-  return {IList{contents, input_istring.reference}, immutable};
+  return IList{contents, input_istring.reference, input_istring.immutable};
 }
 
 // note: if literal includes a `*`, globbing will be used - this is
@@ -205,139 +252,158 @@ IValue ASTEvaluate::operator()(FormattedLiteral const &formatted_literal) {
     ASTEvaluate ast_visitor = {context, state};
     IValue obj_result = std::visit(ast_visitor, ast_obj);
     // append a string.
-    if (std::holds_alternative<IString>(obj_result.data)) {
-      out += std::get<IString>(obj_result.data).content;
-      immutable &= obj_result.immutable;
+    if (std::holds_alternative<IString>(obj_result)) {
+      out += std::get<IString>(obj_result).content;
+      immutable &= is_immutable(obj_result);
     }
     // append a bool.
-    else if (std::holds_alternative<IBool>(obj_result.data)) {
-      out += (std::get<IBool>(obj_result.data) ? "true" : "false");
-      immutable &= obj_result.immutable;
+    else if (std::holds_alternative<IBool>(obj_result)) {
+      out += (std::get<IBool>(obj_result) ? "true" : "false");
+      immutable &= is_immutable(obj_result);
     }
     // append a list of strings.
-    else if (std::holds_alternative<IList>(obj_result.data) &&
-             std::get<IList>(obj_result.data).contents.index() == ILIST_STR) {
-      IList obj_result_list = std::get<IList>(obj_result.data);
-      for (size_t i = 0;
-           i < std::get<ILIST_STR>(obj_result_list.contents).size(); i++) {
-        out += std::get<ILIST_STR>(obj_result_list.contents)[i].content;
-        immutable &= obj_result.immutable;
-        if (i < std::get<ILIST_STR>(obj_result_list.contents).size() - 1)
+    else if (std::holds_alternative<IList<IString>>(obj_result)) {
+      IList<IString> obj_result_list = std::get<IList<IString>>(obj_result);
+      for (size_t i = 0; i < obj_result_list.contents.size(); i++) {
+        out += obj_result_list.contents[i].content;
+        immutable &= is_immutable(obj_result);
+        if (i < obj_result_list.contents.size() - 1)
           out += " ";
       }
     }
     // append a list of bools.
-    else if (std::holds_alternative<IList>(obj_result.data) &&
-             std::get<IList>(obj_result.data).contents.index() == ILIST_BOOL) {
-      IList obj_result_list = std::get<IList>(obj_result.data);
-      for (size_t i = 0;
-           i < std::get<ILIST_BOOL>(obj_result_list.contents).size(); i++) {
-        out += (std::get<ILIST_BOOL>(obj_result_list.contents)[i] ? "true"
-                                                                  : "false");
-        immutable &= obj_result.immutable;
-        if (i < std::get<ILIST_BOOL>(obj_result_list.contents).size() - 1)
+    else if (std::holds_alternative<IList<IBool>>(obj_result)) {
+      IList<IBool> obj_result_list = std::get<IList<IBool>>(obj_result);
+      for (size_t i = 0; i < obj_result_list.contents.size(); i++) {
+        out += obj_result_list.contents[i] ? "true" : "false";
+        immutable &= is_immutable(obj_result);
+        if (i < obj_result_list.contents.size() - 1)
           out += " ";
       }
     }
   }
 
   if (context.use_globbing)
-    return expand_literal(IString{out, formatted_literal.reference}, immutable);
+    return expand_literal(IString{out, formatted_literal.reference, immutable});
   else
-    return {IString{out, formatted_literal.reference}, immutable};
+    return IString{out, formatted_literal.reference, immutable};
 }
 
 IValue ASTEvaluate::operator()(List const &list) {
   assert(list.contents.size() > 0 && "attempt to evaluate empty list");
 
-  IList out = IList{{}, list.reference};
-  bool immutable = true;
-  // infer the list type. todo: consider a cleaner solution.
+  // the first element dictates the list type as lists only store one type.
   ASTEvaluate ast_visitor = {context, state};
-  IValue _obj_result = std::visit(ast_visitor, list.contents[0]);
-  out.reference = list.reference; // std::visit(QBVisitStreamReference{},
-                                  // _obj_result.value);
-  if (std::holds_alternative<IString>(_obj_result.data)) {
-    out.contents = std::vector<IString>();
-  } else if (std::holds_alternative<IBool>(_obj_result.data)) {
-    out.contents = std::vector<IBool>();
-  } else if (std::holds_alternative<IList>(_obj_result.data)) {
-    IList __obj_ilist = std::get<IList>(_obj_result.data);
-    if (std::holds_alternative<std::vector<IString>>(__obj_ilist.contents))
-      out.contents = std::vector<IString>();
-    else if (std::holds_alternative<std::vector<IBool>>(__obj_ilist.contents))
-      out.contents = std::vector<IBool>();
-  }
+  IValue first_value = std::visit(ast_visitor, list.contents[0]);
 
-  // add the early evaluated first element.
-  if (std::holds_alternative<IString>(_obj_result.data)) {
-    std::get<ILIST_STR>(out.contents)
-        .push_back(std::get<IString>(_obj_result.data));
-    immutable &= _obj_result.immutable;
-  } else if (std::holds_alternative<IBool>(_obj_result.data)) {
-    std::get<ILIST_BOOL>(out.contents)
-        .push_back(std::get<IBool>(_obj_result.data));
-    immutable &= _obj_result.immutable;
-  } else if (std::holds_alternative<IList>(_obj_result.data)) {
-    IList obj_result_ilist = std::get<IList>(_obj_result.data);
-    if (obj_result_ilist.holds_istring() && out.holds_istring()) {
-      std::get<ILIST_STR>(out.contents)
-          .insert(std::get<ILIST_STR>(out.contents).begin(),
-                  std::get<ILIST_STR>(obj_result_ilist.contents).begin(),
-                  std::get<ILIST_STR>(obj_result_ilist.contents).end());
-      immutable &= _obj_result.immutable;
-    } else if (obj_result_ilist.holds_ibool() && out.holds_ibool()) {
-      std::get<ILIST_BOOL>(out.contents)
-          .insert(std::get<ILIST_BOOL>(out.contents).begin(),
-                  std::get<ILIST_BOOL>(obj_result_ilist.contents).begin(),
-                  std::get<ILIST_BOOL>(obj_result_ilist.contents).end());
-      immutable &= _obj_result.immutable;
-    }
-  }
+  if (std::holds_alternative<IString>(first_value)) {
+    // evaluate list<string>
+    IList<IString> ilist{{}, list.reference, is_immutable(first_value)};
+    ilist.contents.push_back(std::get<IString>(first_value));
 
-  for (size_t i = 1; i < list.contents.size(); i++) {
-    ASTObject ast_obj = list.contents[i];
-    ASTEvaluate ast_visitor = {context, state};
-    IValue obj_result = std::visit(ast_visitor, ast_obj);
-    if (std::holds_alternative<IString>(obj_result.data)) {
-      if (out.holds_istring()) {
-        std::get<ILIST_STR>(out.contents)
-            .push_back(std::get<IString>(obj_result.data));
-        immutable &= _obj_result.immutable;
-      } else
-        ErrorHandler::halt(EListTypeMismatch{out, obj_result});
-    } else if (std::holds_alternative<IBool>(obj_result.data)) {
-      if (out.holds_ibool()) {
-        std::get<ILIST_BOOL>(out.contents)
-            .push_back(std::get<IBool>(obj_result.data));
-        immutable &= _obj_result.immutable;
-      } else
-        ErrorHandler::halt(EListTypeMismatch{out, obj_result});
-    } else if (std::holds_alternative<IList>(obj_result.data)) {
-      IList obj_result_ilist = std::get<IList>(obj_result.data);
-      if (obj_result_ilist.holds_istring() && out.holds_istring()) {
-        std::get<ILIST_STR>(out.contents)
-            .insert(std::get<ILIST_STR>(out.contents).end(),
-                    std::get<ILIST_STR>(obj_result_ilist.contents).begin(),
-                    std::get<ILIST_STR>(obj_result_ilist.contents).end());
-        immutable &= _obj_result.immutable;
-      } else if (obj_result_ilist.holds_ibool() && out.holds_ibool()) {
-        std::get<ILIST_BOOL>(out.contents)
-            .insert(std::get<ILIST_BOOL>(out.contents).end(),
-                    std::get<ILIST_BOOL>(obj_result_ilist.contents).begin(),
-                    std::get<ILIST_BOOL>(obj_result_ilist.contents).end());
-        immutable &= _obj_result.immutable;
-      } else {
-        ErrorHandler::halt(EListTypeMismatch{out, obj_result});
+    // evaluate the rest of the list
+    for (ASTObject const &ast_obj : list.contents | std::views::drop(1)) {
+      IValue value = std::visit(ast_visitor, ast_obj);
+      ilist.immutable &= is_immutable(value);
+      if (std::holds_alternative<IString>(value)) {
+        ilist.contents.push_back(std::get<IString>(value));
+        continue;
+      } else if (std::holds_alternative<IList<IString>>(value)) {
+        std::vector<IString> value_contents =
+            std::get<IList<IString>>(value).contents;
+        ilist.contents.insert(ilist.contents.end(), value_contents.begin(),
+                              value_contents.end());
+        continue;
       }
+      ErrorHandler::halt(EListTypeMismatch{ilist, value});
     }
+
+    return ilist;
+
+  } else if (std::holds_alternative<IBool>(first_value)) {
+    // evaluate list<bool>
+    IList<IBool> ilist{{}, list.reference, is_immutable(first_value)};
+    ilist.contents.push_back(std::get<IBool>(first_value));
+
+    // evaluate the rest of the list
+    for (ASTObject const &ast_obj : list.contents | std::views::drop(1)) {
+      IValue value = std::visit(ast_visitor, ast_obj);
+      ilist.immutable &= is_immutable(value);
+      if (std::holds_alternative<IBool>(value)) {
+        ilist.contents.push_back(std::get<IBool>(value));
+        continue;
+      } else if (std::holds_alternative<IList<IBool>>(value)) {
+        std::vector<IBool> value_contents =
+            std::get<IList<IBool>>(value).contents;
+        ilist.contents.insert(ilist.contents.end(), value_contents.begin(),
+                              value_contents.end());
+        continue;
+      }
+      ErrorHandler::halt(EListTypeMismatch{ilist, value});
+    }
+
+    return ilist;
+
+  } else if (std::holds_alternative<IList<IString>>(first_value)) {
+    // evaluate list<string>
+    IList<IString> ilist{{}, list.reference, is_immutable(first_value)};
+    std::vector<IString> first_value_contents =
+        std::get<IList<IString>>(first_value).contents;
+    ilist.contents.insert(ilist.contents.end(), first_value_contents.begin(),
+                          first_value_contents.end());
+
+    // evaluate the rest of the list
+    for (ASTObject const &ast_obj : list.contents | std::views::drop(1)) {
+      IValue value = std::visit(ast_visitor, ast_obj);
+      ilist.immutable &= is_immutable(value);
+      if (std::holds_alternative<IString>(value)) {
+        ilist.contents.push_back(std::get<IString>(value));
+        continue;
+      } else if (std::holds_alternative<IList<IString>>(value)) {
+        std::vector<IString> value_contents =
+            std::get<IList<IString>>(value).contents;
+        ilist.contents.insert(ilist.contents.end(), value_contents.begin(),
+                              value_contents.end());
+        continue;
+      }
+      ErrorHandler::halt(EListTypeMismatch{ilist, value});
+    }
+
+    return ilist;
+
+  } else if (std::holds_alternative<IList<IBool>>(first_value)) {
+    // evaluate list<bool>
+    IList<IBool> ilist{{}, list.reference, is_immutable(first_value)};
+    std::vector<IBool> first_value_contents =
+        std::get<IList<IBool>>(first_value).contents;
+    ilist.contents.insert(ilist.contents.end(), first_value_contents.begin(),
+                          first_value_contents.end());
+
+    // evaluate the rest of the list
+    for (ASTObject const &ast_obj : list.contents | std::views::drop(1)) {
+      IValue value = std::visit(ast_visitor, ast_obj);
+      ilist.immutable &= is_immutable(value);
+      if (std::holds_alternative<IBool>(value)) {
+        ilist.contents.push_back(std::get<IBool>(value));
+        continue;
+      } else if (std::holds_alternative<IList<IBool>>(value)) {
+        std::vector<IBool> value_contents =
+            std::get<IList<IBool>>(value).contents;
+        ilist.contents.insert(ilist.contents.end(), value_contents.begin(),
+                              value_contents.end());
+        continue;
+      }
+      ErrorHandler::halt(EListTypeMismatch{ilist, value});
+    }
+
+    return ilist;
   }
 
-  return {out, immutable};
+  assert(false && "invalid list type");
 }
 
 IValue ASTEvaluate::operator()(Boolean const &boolean) {
-  return {IBool(boolean.content, boolean.reference)};
+  return {IBool(boolean.content, boolean.reference, true)};
 }
 
 IValue ASTEvaluate::operator()(Replace const &replace) {
@@ -349,33 +415,26 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
   IValue filter = std::visit(ast_visitor, *replace.filter);
   IValue product = std::visit(ast_visitor, *replace.product);
 
-  bool immutable = input.immutable && filter.immutable && product.immutable;
+  bool immutability =
+      is_immutable(input) && is_immutable(filter) && is_immutable(product);
 
   // verify types.
-  if (!std::holds_alternative<IString>(filter.data))
+  if (!std::holds_alternative<IString>(filter))
     ErrorHandler::halt(EReplaceTypeMismatch{replace, filter});
 
-  if (!std::holds_alternative<IString>(product.data))
+  if (!std::holds_alternative<IString>(product))
     ErrorHandler::halt(EReplaceTypeMismatch{replace, product});
 
   // fetch input.
-  IList input_parsed{{}, replace.reference};
-  IList output_parsed{{}, replace.reference};
-  if (std::holds_alternative<IList>(input.data) &&
-      std::get<IList>(input.data).holds_istring())
-    input_parsed = std::get<IList>(input.data);
-  else if (std::holds_alternative<IString>(input.data))
-    std::get<ILIST_STR>(input_parsed.contents)
-        .push_back(std::get<IString>(input.data));
-  else
-    ErrorHandler::halt(EReplaceTypeMismatch{replace, input});
+  IList<IString> input_parsed = autocast_strict<IList<IString>>(input);
+  IList<IString> output_parsed{{}, replace.reference, immutability};
 
-  std::string filter_str = std::get<IString>(filter.data).content;
-  std::string product_str = std::get<IString>(product.data).content;
+  std::string filter_str = std::get<IString>(filter).content;
+  std::string product_str = std::get<IString>(product).content;
 
   // convert to pure strings first...
   std::vector<std::string> algorithm_input;
-  for (const IString &istring : std::get<ILIST_STR>(input_parsed.contents)) {
+  for (const IString &istring : input_parsed.contents) {
     algorithm_input.push_back(istring.content);
   }
 
@@ -384,18 +443,18 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
     algorithm_output =
         Wildcards::compute_replace(algorithm_input, filter_str, product_str);
   } catch (LiteralsAdjacentWildcards &_) {
-    ErrorHandler::halt(EAdjacentWildcards{std::get<IString>(filter.data)});
+    ErrorHandler::halt(EAdjacentWildcards{std::get<IString>(filter)});
   } catch (LiteralsChunksLength &_) {
     ErrorHandler::halt(EReplaceChunksLength{product});
   }
 
   // convert back to interpreter types for tracking
   for (const std::string &str : algorithm_output) {
-    std::get<ILIST_STR>(output_parsed.contents)
-        .push_back(IString{str, replace.reference});
+    output_parsed.contents.push_back(
+        IString{str, replace.reference, immutability});
   }
 
-  return {output_parsed, immutable};
+  return output_parsed;
 }
 
 Interpreter::Interpreter(AST &ast, Setup &setup) {
@@ -442,6 +501,18 @@ Interpreter::evaluate_field_default(std::string identifier,
   return evaluate_ast_object(field->expression, context);
 }
 
+template <typename T>
+std::optional<T>
+Interpreter::evaluate_field_default_strict(std::string identifier,
+                                           EvaluationContext context,
+                                           std::optional<T> default_value) {
+  std::optional<IValue> value =
+      this->evaluate_field_default(identifier, context, default_value);
+  if (!value)
+    return std::nullopt;
+  return autocast_strict<T>(*value);
+}
+
 std::optional<IValue>
 Interpreter::evaluate_field_optional(std::string identifier,
                                      EvaluationContext context) {
@@ -449,6 +520,16 @@ Interpreter::evaluate_field_optional(std::string identifier,
   if (!field)
     return std::nullopt;
   return evaluate_ast_object(field->expression, context);
+}
+
+template <typename T>
+std::optional<T>
+Interpreter::evaluate_field_optional_strict(std::string identifier,
+                                            EvaluationContext context) {
+  std::optional<IValue> value = evaluate_field_optional(identifier, context);
+  if (!value)
+    return std::nullopt;
+  return autocast_strict<T>(*value);
 }
 
 void Interpreter::t_run_task(Task task, std::string task_iteration,
@@ -468,45 +549,45 @@ void Interpreter::t_run_task(Task task, std::string task_iteration,
 
 DependencyStatus
 Interpreter::_solve_dependencies_parallel(IValue dependencies) {
-  if (std::holds_alternative<IString>(dependencies.data)) {
+  if (std::holds_alternative<IString>(dependencies)) {
     // only one dependency - no reason to use a separate thread.
-    IString task_iteration = std::get<IString>(dependencies.data);
+    IString task_iteration = std::get<IString>(dependencies);
     std::optional<Task> _task = find_task(task_iteration.content);
     std::optional<size_t> modified =
-        OSLayer::get_file_timestamp(task_iteration.toString());
+        OSLayer::get_file_timestamp(task_iteration.to_string());
     if (!_task) {
       return {true, modified};
     }
     FrameGuard frame{
-        DependencyBuildFrame(task_iteration.toString(), _task->reference)};
-    run_task(*_task, task_iteration.toString());
+        DependencyBuildFrame(task_iteration.to_string(), _task->reference)};
+    run_task(*_task, task_iteration.to_string());
     return {true, modified};
   }
-  if (!std::holds_alternative<IList>(dependencies.data) ||
-      !std::get<IList>(dependencies.data).holds_istring()) {
+
+  if (!std::holds_alternative<IList<IString>>(dependencies)) {
     ErrorHandler::halt(
         EVariableTypeMismatch{dependencies, "string or list<string>"});
   }
 
   std::vector<std::thread> pool;
-  IList dependencies_list = std::get<IList>(dependencies.data);
+  IList dependencies_list = std::get<IList<IString>>(dependencies);
   std::shared_ptr<std::atomic<bool>> error =
       std::make_shared<std::atomic<bool>>();
   *error = false;
   std::optional<size_t> modified;
 
   for (IString task_iteration :
-       std::get<ILIST_STR>(std::get<IList>(dependencies.data).contents)) {
+       std::get<IList<IString>>(dependencies).contents) {
     std::optional<Task> _task = find_task(task_iteration.content);
     std::optional<size_t> modified_i =
-        OSLayer::get_file_timestamp(task_iteration.toString());
+        OSLayer::get_file_timestamp(task_iteration.to_string());
     if (!modified || (modified_i && modified < modified_i))
       modified = modified_i;
     if (!_task) {
       continue;
     }
     pool.push_back(std::thread(&Interpreter::t_run_task, this, *_task,
-                               task_iteration.toString(), error,
+                               task_iteration.to_string(), error,
                                ContextStack::export_local_stack()));
   }
 
@@ -523,34 +604,33 @@ Interpreter::_solve_dependencies_parallel(IValue dependencies) {
 }
 
 DependencyStatus Interpreter::_solve_dependencies_sync(IValue dependencies) {
-  if (std::holds_alternative<IString>(dependencies.data)) {
-    IString task_iteration = std::get<IString>(dependencies.data);
+  if (std::holds_alternative<IString>(dependencies)) {
+    IString task_iteration = std::get<IString>(dependencies);
     std::optional<Task> _task = find_task(task_iteration.content);
     std::optional<size_t> modified =
-        OSLayer::get_file_timestamp(task_iteration.toString());
+        OSLayer::get_file_timestamp(task_iteration.to_string());
     if (_task) {
       FrameGuard frame{
-          DependencyBuildFrame(task_iteration.toString(), _task->reference)};
-      run_task(*_task, task_iteration.toString());
+          DependencyBuildFrame(task_iteration.to_string(), _task->reference)};
+      run_task(*_task, task_iteration.to_string());
       return {true, modified};
     }
     return {true, modified};
-  } else if (std::holds_alternative<IList>(dependencies.data) &&
-             std::get<IList>(dependencies.data).holds_istring()) {
+  } else if (std::holds_alternative<IList<IString>>(dependencies)) {
     std::optional<size_t> modified;
     for (IString task_iteration :
-         std::get<ILIST_STR>(std::get<IList>(dependencies.data).contents)) {
+         std::get<IList<IString>>(dependencies).contents) {
       std::optional<Task> _task = find_task(task_iteration.content);
       std::optional<size_t> modified_i =
-          OSLayer::get_file_timestamp(task_iteration.toString());
+          OSLayer::get_file_timestamp(task_iteration.to_string());
       if (!modified || (modified_i && modified < modified_i))
         modified = modified_i;
       if (!_task) {
         continue;
       }
       FrameGuard frame{
-          DependencyBuildFrame(task_iteration.toString(), _task->reference)};
-      run_task(*_task, task_iteration.toString());
+          DependencyBuildFrame(task_iteration.to_string(), _task->reference)};
+      run_task(*_task, task_iteration.to_string());
     }
     return {true, modified};
   } else {
@@ -576,23 +656,19 @@ void Interpreter::run_task(Task task, std::string task_iteration) {
     ErrorHandler::halt(ERecursiveTask{task, task_iteration});
 
   // solve dependencies.
-  std::optional<IValue> dependencies =
-      evaluate_field_optional(DEPENDS, {task, task_iteration});
+  std::optional<IList<IString>> dependencies =
+      evaluate_field_optional_strict<IList<IString>>(DEPENDS,
+                                                     {task, task_iteration});
   std::optional<size_t> dep_modified;
   if (dependencies) {
-    IValue parallel_default = {IBool(false, task.reference), true};
+    IBool parallel_default = IBool(false, task.reference, IMMUTABLE);
     // it is safe to unwrap the std::optional because we have a default value.
-    IValue parallel = *evaluate_field_default(
+    IBool parallel = *evaluate_field_default_strict<IBool>(
         DEPENDS_PARALLEL, {task, task_iteration}, parallel_default);
-    if (!std::holds_alternative<IBool>(parallel.data)) {
-      ErrorHandler::halt(EVariableTypeMismatch{parallel, "bool"});
-    }
-    DependencyStatus dep_stat =
-        solve_dependencies(*dependencies, std::get<IBool>(parallel.data));
+    DependencyStatus dep_stat = solve_dependencies(*dependencies, parallel);
     dep_modified = dep_stat.modified;
     if (!dep_stat.success)
       ErrorHandler::trigger_report();
-    // ErrorHandler::halt(EDependencyStatus{});
   }
 
   // check for changes.
@@ -604,56 +680,32 @@ void Interpreter::run_task(Task task, std::string task_iteration) {
   }
 
   // execution related fields.
-  std::optional<IValue> command_expr =
-      evaluate_field_optional(RUN, {task, task_iteration});
+  std::optional<IList<IString>> command_expr =
+      evaluate_field_optional_strict<IList<IString>>(RUN,
+                                                     {task, task_iteration});
   if (!command_expr) {
     return; // abstract task.
   }
-  IValue run_parallel_default = {IBool(false, task.reference), true};
-  IValue run_parallel = *evaluate_field_default(
+  IBool run_parallel_default = IBool(false, task.reference, true);
+  IBool run_parallel = *evaluate_field_default_strict<IBool>(
       RUN_PARALLEL, {task, task_iteration}, run_parallel_default);
-  if (!std::holds_alternative<IBool>(run_parallel.data)) {
-    ErrorHandler::halt(EVariableTypeMismatch{run_parallel, "bool"});
-  }
-  if (!std::holds_alternative<IString>(command_expr->data) &&
-      !(std::holds_alternative<IList>(command_expr->data) &&
-        std::get<IList>(command_expr->data).holds_istring())) {
-    ErrorHandler::halt(
-        EVariableTypeMismatch{*command_expr, "string or list<string>"});
-  }
 
   // execute task.
   LOG_STANDARD(CYAN << "»" << RESET << " starting " << task_iteration);
-  if (std::holds_alternative<IString>(command_expr->data) &&
-      !this->state->setup.dry_run) {
-    // single command
-    IString cmdline = std::get<IString>(command_expr->data);
-    OSLayer os_layer(std::get<IBool>(run_parallel.data), false);
-    os_layer.queue_command({cmdline.toString(), cmdline.reference});
-    os_layer.execute_queue();
+  if (this->state->setup.dry_run)
+    return;
+  OSLayer os_layer(run_parallel, false);
+  for (IString cmdline : command_expr->contents) {
+    os_layer.queue_command({cmdline.to_string(), cmdline.reference});
+  }
+  os_layer.execute_queue();
 
-    if (!os_layer.get_non_zero_commands().empty()) {
-      for (Command const &cmd : os_layer.get_non_zero_commands()) {
-        ErrorHandler::soft_report(ENonZeroProcess{cmd.cmdline, cmd.reference});
-      }
-      ErrorHandler::trigger_report();
+  // check for errors during execution.
+  if (!os_layer.get_non_zero_commands().empty()) {
+    for (Command const &cmd : os_layer.get_non_zero_commands()) {
+      ErrorHandler::soft_report(ENonZeroProcess{cmd.cmdline, cmd.reference});
     }
-  } else if (std::holds_alternative<IList>(command_expr->data) &&
-             std::get<IList>(command_expr->data).holds_istring()) {
-    // multiple commands
-    OSLayer os_layer(std::get<IBool>(run_parallel.data), false);
-    for (IString cmdline :
-         std::get<ILIST_STR>(std::get<IList>(command_expr->data).contents)) {
-      os_layer.queue_command({cmdline.toString(), cmdline.reference});
-    }
-    os_layer.execute_queue();
-
-    if (!os_layer.get_non_zero_commands().empty()) {
-      for (Command const &cmd : os_layer.get_non_zero_commands()) {
-        ErrorHandler::soft_report(ENonZeroProcess{cmd.cmdline, cmd.reference});
-      }
-      ErrorHandler::trigger_report();
-    }
+    ErrorHandler::trigger_report();
   }
 
   LOG_STANDARD(GREEN << "✓" << RESET << " finished " << task_iteration);
@@ -669,29 +721,16 @@ void Interpreter::build() {
     IValue identifier =
         std::visit(ASTEvaluate{{std::nullopt, std::nullopt}, this->state},
                    task.identifier);
-    if (std::holds_alternative<IBool>(identifier.data) ||
-        (std::holds_alternative<IList>(identifier.data) &&
-         std::get<IList>(identifier.data).holds_ibool()))
-      ErrorHandler::halt(
-          EVariableTypeMismatch{identifier, "string or list<string>"});
+    IList<IString> identifiers = autocast_strict<IList<IString>>(identifier);
 
     std::shared_ptr<Task> task_ptr = std::make_shared<Task>(task);
-    if (std::holds_alternative<IString>(identifier.data)) {
-      std::string key = std::get<IString>(identifier.data).content;
-      auto duplicate_it = this->state->cached_tasks.find(key);
+    std::vector<IString> keys = identifiers.contents;
+    for (IString const &key_istr : keys) {
+      auto duplicate_it = this->state->cached_tasks.find(key_istr.content);
       if (duplicate_it != this->state->cached_tasks.end())
-        ErrorHandler::halt(EDuplicateTask{*duplicate_it->second, task, key});
-      this->state->cached_tasks[key] = task_ptr;
-    } else if (std::holds_alternative<IList>(identifier.data)) {
-      std::vector<IString> keys =
-          std::get<ILIST_STR>(std::get<IList>(identifier.data).contents);
-      for (IString const &key_istr : keys) {
-        auto duplicate_it = this->state->cached_tasks.find(key_istr.content);
-        if (duplicate_it != this->state->cached_tasks.end())
-          ErrorHandler::halt(
-              EDuplicateTask{*duplicate_it->second, task, key_istr.content});
-        this->state->cached_tasks[key_istr.content] = task_ptr;
-      }
+        ErrorHandler::halt(
+            EDuplicateTask{*duplicate_it->second, task, key_istr.content});
+      this->state->cached_tasks[key_istr.content] = task_ptr;
     }
   }
 
@@ -711,14 +750,13 @@ void Interpreter::build() {
         this->state->topmost_task; // we've already checked that it's not empty
     IValue task_iteration_ivalue =
         evaluate_ast_object(task->identifier, {std::nullopt, std::nullopt});
-    if (!std::holds_alternative<IString>(task_iteration_ivalue.data)) {
+    if (!std::holds_alternative<IString>(task_iteration_ivalue)) {
       ErrorHandler::halt(EAmbiguousTask{*task});
     }
     task_iteration =
         std::get<IString>(
-            evaluate_ast_object(task->identifier, {std::nullopt, std::nullopt})
-                .data)
-            .toString();
+            evaluate_ast_object(task->identifier, {std::nullopt, std::nullopt}))
+            .to_string();
   }
 
   LOG_STANDARD("⧗ building " << CYAN << task_iteration << RESET);
