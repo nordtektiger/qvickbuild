@@ -86,8 +86,6 @@ struct DependencyStatus {
   std::optional<size_t> modified;
 };
 
-#include "errors.hpp"
-
 class Interpreter {
 private:
   std::shared_ptr<EvaluationState> state;
@@ -111,13 +109,9 @@ private:
                                 EvaluationContext context,
                                 std::optional<T> default_value);
 
-  void t_run_task(Task task, std::string task_iteration,
-                  std::shared_ptr<std::atomic<bool>> error,
-                  std::vector<std::shared_ptr<Frame>> local_stack);
   void run_task(Task task, std::string task_iteration);
-  DependencyStatus _solve_dependencies_parallel(IValue dependencies);
-  DependencyStatus _solve_dependencies_sync(IValue dependencies);
-  DependencyStatus solve_dependencies(IValue dependencies, bool parallel);
+  DependencyStatus solve_dependencies(IList<IString> dependencies,
+                                      bool parallel);
 
 public:
   Interpreter(AST &ast, Setup &setup);

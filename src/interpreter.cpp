@@ -4,6 +4,7 @@
 #include "format.hpp"
 #include "literals.hpp"
 #include "oslayer.hpp"
+#include "pipeline.hpp"
 #include "static_verify.hpp"
 #include "tracking.hpp"
 
@@ -532,119 +533,115 @@ Interpreter::evaluate_field_optional_strict(std::string identifier,
   return autocast_strict<T>(*value);
 }
 
-void Interpreter::t_run_task(Task task, std::string task_iteration,
-                             std::shared_ptr<std::atomic<bool>> error,
-                             std::vector<std::shared_ptr<Frame>> local_stack) {
-  try {
-    ContextStack::import_local_stack(local_stack);
-    FrameGuard frame{DependencyBuildFrame(task_iteration, task.reference)};
-    run_task(task, task_iteration);
-  } catch (...) {
-    // it's ok to ignore the exception, since the task failure will throw an
-    // EDependencyFailed regardless, which will unwind the combined error
-    // stack.
-    *error = true;
-  }
-}
+// void Interpreter::t_run_task(Task task, std::string task_iteration,
+//                              std::shared_ptr<std::atomic<bool>> error,
+//                              std::vector<std::shared_ptr<Frame>> local_stack)
+//                              {
+//   try {
+//     ContextStack::import_local_stack(local_stack);
+//     FrameGuard frame{DependencyBuildFrame(task_iteration, task.reference)};
+//     run_task(task, task_iteration);
+//   } catch (...) {
+//     // it's ok to ignore the exception, since the task failure will throw an
+//     // EDependencyFailed regardless, which will unwind the combined error
+//     // stack.
+//     *error = true;
+//   }
+// }
 
-DependencyStatus
-Interpreter::_solve_dependencies_parallel(IValue dependencies) {
-  if (std::holds_alternative<IString>(dependencies)) {
-    // only one dependency - no reason to use a separate thread.
-    IString task_iteration = std::get<IString>(dependencies);
-    std::optional<Task> _task = find_task(task_iteration.content);
-    std::optional<size_t> modified =
-        OSLayer::get_file_timestamp(task_iteration.to_string());
-    if (!_task) {
-      return {true, modified};
+using RunTaskType = std::function<void(Task, std::string)>;
+
+namespace PipelineJobs {
+template <typename F> class BuildJob : public PipelineJob {
+private:
+  // Interpreter *interpreter_ptr;
+  // void (Interpreter::*run_task)(Task, std::string);
+  F function_ptr;
+  Task task;
+  std::string task_iteration;
+
+public:
+  BuildJob(F function_ptr, Task task, std::string task_iteration)
+      : function_ptr(function_ptr) {
+    this->task = task;
+    this->task_iteration = task_iteration;
+  }
+  void compute() noexcept {
+    try {
+      function_ptr(task, task_iteration);
+    } catch (...) {
+      this->report_error();
     }
-    FrameGuard frame{
-        DependencyBuildFrame(task_iteration.to_string(), _task->reference)};
-    run_task(*_task, task_iteration.to_string());
-    return {true, modified};
   }
+};
+} // namespace PipelineJobs
 
-  if (!std::holds_alternative<IList<IString>>(dependencies)) {
-    ErrorHandler::halt(
-        EVariableTypeMismatch{dependencies, "string or list<string>"});
-  }
+DependencyStatus Interpreter::solve_dependencies(IList<IString> dependencies,
+                                                 bool parallel) {
+  std::vector<std::shared_ptr<PipelineJobs::BuildJob<RunTaskType>>> build_jobs;
+  // std::shared_ptr<std::atomic<bool>> error =
+  //     std::make_shared<std::atomic<bool>>();
+  // *error = false;
+  std::optional<size_t> latest_modification;
 
-  std::vector<std::thread> pool;
-  IList dependencies_list = std::get<IList<IString>>(dependencies);
-  std::shared_ptr<std::atomic<bool>> error =
-      std::make_shared<std::atomic<bool>>();
-  *error = false;
-  std::optional<size_t> modified;
-
-  for (IString task_iteration :
-       std::get<IList<IString>>(dependencies).contents) {
-    std::optional<Task> _task = find_task(task_iteration.content);
+  for (IString dependency : dependencies.contents) {
+    std::optional<Task> task = find_task(dependency.to_string());
     std::optional<size_t> modified_i =
-        OSLayer::get_file_timestamp(task_iteration.to_string());
-    if (!modified || (modified_i && modified < modified_i))
-      modified = modified_i;
-    if (!_task) {
+        OSLayer::get_file_timestamp(dependency.to_string());
+    if (!latest_modification ||
+        (modified_i && latest_modification < modified_i))
+      latest_modification = modified_i;
+    if (!task) {
       continue;
     }
-    pool.push_back(std::thread(&Interpreter::t_run_task, this, *_task,
-                               task_iteration.to_string(), error,
-                               ContextStack::export_local_stack()));
+    RunTaskType my_func = [this](Task x, std::string y) {
+      return this->run_task(x, y);
+    };
+    // PipelineJobs::BuildJob<RunTaskType> my_job = PipelineJobs::BuildJob{
+    //     my_func,
+    //     *task,
+    //     dependency.to_string(),
+    // };
+    build_jobs.push_back(std::make_shared<PipelineJobs::BuildJob<RunTaskType>>(
+        my_func, *task, dependency.to_string()));
+    // });
+    // pool.push_back(std::thread(&Interpreter::t_run_task, this, *_task,
+    //                            task_iteration.to_string(), error,
+    //                            ContextStack::export_local_stack()));
   }
 
-  for (std::thread &thread : pool) {
-    thread.join();
-  }
-
-  if (*error) {
-    // error will be pushed in the failing thread.
-    ErrorHandler::trigger_report();
-    return {false, modified};
-  } else
-    return {true, modified};
-}
-
-DependencyStatus Interpreter::_solve_dependencies_sync(IValue dependencies) {
-  if (std::holds_alternative<IString>(dependencies)) {
-    IString task_iteration = std::get<IString>(dependencies);
-    std::optional<Task> _task = find_task(task_iteration.content);
-    std::optional<size_t> modified =
-        OSLayer::get_file_timestamp(task_iteration.to_string());
-    if (_task) {
-      FrameGuard frame{
-          DependencyBuildFrame(task_iteration.to_string(), _task->reference)};
-      run_task(*_task, task_iteration.to_string());
-      return {true, modified};
+  if (parallel) {
+    auto scheduler =
+        PipelineScheduler<PipelineSchedulingMode::ParallelUnbound>();
+    for (auto &job_ptr : build_jobs) {
+      scheduler.schedule_job(job_ptr);
     }
-    return {true, modified};
-  } else if (std::holds_alternative<IList<IString>>(dependencies)) {
-    std::optional<size_t> modified;
-    for (IString task_iteration :
-         std::get<IList<IString>>(dependencies).contents) {
-      std::optional<Task> _task = find_task(task_iteration.content);
-      std::optional<size_t> modified_i =
-          OSLayer::get_file_timestamp(task_iteration.to_string());
-      if (!modified || (modified_i && modified < modified_i))
-        modified = modified_i;
-      if (!_task) {
-        continue;
-      }
-      FrameGuard frame{
-          DependencyBuildFrame(task_iteration.to_string(), _task->reference)};
-      run_task(*_task, task_iteration.to_string());
-    }
-    return {true, modified};
+    scheduler.send_and_await();
   } else {
-    ErrorHandler::halt(
-        EVariableTypeMismatch{dependencies, "string or list<string>"});
+    auto scheduler =
+        PipelineScheduler<PipelineSchedulingMode::SynchronousUnbound>();
+    for (auto &job_ptr : build_jobs) {
+      scheduler.schedule_job(job_ptr);
+    }
+    scheduler.send_and_await();
   }
-}
 
-DependencyStatus Interpreter::solve_dependencies(IValue dependencies,
-                                                 bool parallel) {
-  if (parallel)
-    return _solve_dependencies_parallel(dependencies);
-  else
-    return _solve_dependencies_sync(dependencies);
+  bool success = true;
+  for (auto &job_ptr : build_jobs) {
+    if (job_ptr->had_error()) {
+      success = false;
+      break;
+    }
+  }
+
+  return {success, latest_modification};
+
+  // if (*error) {
+  //   // error will be pushed in the failing thread.
+  //   ErrorHandler::trigger_report();
+  //   return {false, modified};
+  // } else
+  //   return {true, modified};
 }
 
 void Interpreter::run_task(Task task, std::string task_iteration) {
