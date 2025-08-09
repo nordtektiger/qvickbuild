@@ -1,4 +1,5 @@
 #include "pipeline.hpp"
+#include <cassert>
 #include <iostream>
 
 std::vector<std::thread> Pipeline::thread_pool{};
@@ -12,12 +13,17 @@ void Pipeline::initialize(size_t threads) {
     thread_pool.push_back(std::thread(Pipeline::pool_loop));
 }
 
-void Pipeline::stop() {
+void Pipeline::stop_sync() {
   Pipeline::stop_pipeline = true;
   Pipeline::queue_notifier.release();
   for (std::thread &thread : Pipeline::thread_pool)
     if (thread.joinable())
       thread.join();
+}
+
+void Pipeline::stop_async() {
+  Pipeline::stop_pipeline = true;
+  Pipeline::queue_notifier.release();
 }
 
 void Pipeline::push_to_queue(std::shared_ptr<PipelineJob> job_ptr) {
@@ -57,59 +63,84 @@ void Pipeline::job_compute(std::shared_ptr<PipelineJob> job_ptr) {
 
 void PipelineJob::await_completion() { this->notifier.acquire(); }
 void PipelineJob::report_error() { this->error = true; }
-bool PipelineJob::had_error() { return this->error; }
+bool PipelineJob::had_error() const { return this->error; }
 
 template <typename M>
-void PipelineScheduler<M>::schedule_job(
-    std::shared_ptr<PipelineJob> job_ptr) {
+PipelineScheduler<M>::PipelineScheduler(
+    PipelineSchedulingTopography topograhy) {
+  this->topography = topograhy;
+}
+
+template PipelineScheduler<PipelineSchedulingMethod::Managed>::
+    PipelineScheduler(PipelineSchedulingTopography);
+template PipelineScheduler<PipelineSchedulingMethod::Unbound>::
+    PipelineScheduler(PipelineSchedulingTopography);
+
+template <typename M>
+void PipelineScheduler<M>::schedule_job(std::shared_ptr<PipelineJob> job_ptr) {
   this->buffer.push_back(job_ptr);
 }
 
-template void PipelineScheduler<PipelineSchedulingMode::SynchronousManaged>::
-    schedule_job(std::shared_ptr<PipelineJob>);
-template void PipelineScheduler<PipelineSchedulingMode::SynchronousUnbound>::
-    schedule_job(std::shared_ptr<PipelineJob>);
-template void PipelineScheduler<PipelineSchedulingMode::ParallelManaged>::
-    schedule_job(std::shared_ptr<PipelineJob>);
-template void PipelineScheduler<PipelineSchedulingMode::ParallelUnbound>::
-    schedule_job(std::shared_ptr<PipelineJob>);
+template void
+    PipelineScheduler<PipelineSchedulingMethod::Managed>::schedule_job(
+        std::shared_ptr<PipelineJob>);
+template void
+    PipelineScheduler<PipelineSchedulingMethod::Unbound>::schedule_job(
+        std::shared_ptr<PipelineJob>);
+// template void
+//     PipelineScheduler<PipelineSchedulingMethod::ParallelManaged>::schedule_job(
+//         std::shared_ptr<PipelineJob>);
+// template void
+//     PipelineScheduler<PipelineSchedulingMethod::ParallelUnbound>::schedule_job(
+//         std::shared_ptr<PipelineJob>);
+
+template <typename M> bool PipelineScheduler<M>::had_errors() {
+  for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer) {
+    if (job_ptr->had_error())
+      return true;
+  }
+  return false;
+}
+
+template bool
+PipelineScheduler<PipelineSchedulingMethod::Managed>::had_errors();
+template bool
+PipelineScheduler<PipelineSchedulingMethod::Unbound>::had_errors();
 
 template <>
-void PipelineScheduler<
-    PipelineSchedulingMode::SynchronousManaged>::send_and_await() {
-  for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer) {
-    Pipeline::push_to_queue(job_ptr);
-    job_ptr->await_completion();
-    if (job_ptr->had_error())
-      return;
+void PipelineScheduler<PipelineSchedulingMethod::Managed>::send_and_await() {
+  if (topography == PipelineSchedulingTopography::Sequential) {
+    for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer) {
+      Pipeline::push_to_queue(job_ptr);
+      job_ptr->await_completion();
+      if (job_ptr->had_error())
+        return;
+    }
+  } else if (topography == PipelineSchedulingTopography::Parallel) {
+    for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer)
+      Pipeline::push_to_queue(job_ptr);
+    for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer)
+      job_ptr->await_completion();
+  } else {
+    assert(false && "invalid pipeline scheduling topography");
   }
 }
 
 template <>
-void PipelineScheduler<
-    PipelineSchedulingMode::SynchronousUnbound>::send_and_await() {
-  for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer) {
-    Pipeline::execute_unbound(job_ptr);
-    job_ptr->await_completion();
-    if (job_ptr->had_error())
-      return;
+void PipelineScheduler<PipelineSchedulingMethod::Unbound>::send_and_await() {
+  if (topography == PipelineSchedulingTopography::Sequential) {
+    for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer) {
+      Pipeline::execute_unbound(job_ptr);
+      job_ptr->await_completion();
+      if (job_ptr->had_error())
+        return;
+    }
+  } else if (topography == PipelineSchedulingTopography::Parallel) {
+    for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer)
+      Pipeline::execute_unbound(job_ptr);
+    for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer)
+      job_ptr->await_completion();
+  } else {
+    assert(false && "invalid pipeline scheduling topography");
   }
-}
-
-template <>
-void PipelineScheduler<
-    PipelineSchedulingMode::ParallelManaged>::send_and_await() {
-  for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer)
-    Pipeline::push_to_queue(job_ptr);
-  for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer)
-    job_ptr->await_completion();
-}
-
-template <>
-void PipelineScheduler<
-    PipelineSchedulingMode::ParallelUnbound>::send_and_await() {
-  for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer)
-    Pipeline::execute_unbound(job_ptr);
-  for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer)
-    job_ptr->await_completion();
 }

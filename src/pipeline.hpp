@@ -23,7 +23,7 @@ public:
   void await_completion();
 
   void report_error();
-  bool had_error();
+  bool had_error() const;
 };
 
 namespace PipelineJobs {
@@ -51,24 +51,41 @@ public:
   static void push_to_queue(std::shared_ptr<PipelineJob>);
   static void execute_unbound(std::shared_ptr<PipelineJob>);
   static void initialize(size_t);
-  static void stop();
+  static void stop_sync();
+  static void stop_async();
 };
 
-namespace PipelineSchedulingMode {
-struct SynchronousManaged {};
-struct SynchronousUnbound {};
-struct ParallelManaged {};
-struct ParallelUnbound {};
-}; // namespace PipelineSchedulingMode
+enum class PipelineSchedulingTopography {
+  Sequential,
+  Parallel,
+};
+
+namespace PipelineSchedulingMethod {
+struct Managed {};
+struct Unbound {};
+using PipelineSchedulingTopography::Sequential;
+using PipelineSchedulingTopography::Parallel;
+// struct SynchronousManaged {};
+// struct SynchronousUnbound {};
+// struct ParallelManaged {};
+// struct ParallelUnbound {};
+}; // namespace PipelineSchedulingMethod
 
 template <typename M> class PipelineScheduler {
 private:
-  M scheduling_mode;
+  M _;
+  PipelineSchedulingTopography topography;
   std::vector<std::shared_ptr<PipelineJob>> buffer;
 
 public:
   void schedule_job(std::shared_ptr<PipelineJob>);
+  bool had_errors();
   void send_and_await();
+
+  std::vector<std::shared_ptr<PipelineJob>> get_buffer();
+
+  PipelineScheduler() = delete;
+  PipelineScheduler(PipelineSchedulingTopography);
 };
 
 #endif

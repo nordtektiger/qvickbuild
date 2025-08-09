@@ -578,11 +578,11 @@ public:
 
 DependencyStatus Interpreter::solve_dependencies(IList<IString> dependencies,
                                                  bool parallel) {
-  std::vector<std::shared_ptr<PipelineJobs::BuildJob<RunTaskType>>> build_jobs;
-  // std::shared_ptr<std::atomic<bool>> error =
-  //     std::make_shared<std::atomic<bool>>();
-  // *error = false;
   std::optional<size_t> latest_modification;
+  auto topography = parallel ? PipelineSchedulingTopography::Parallel
+                             : PipelineSchedulingTopography::Sequential;
+  auto scheduler =
+      PipelineScheduler<PipelineSchedulingMethod::Unbound>(topography);
 
   for (IString dependency : dependencies.contents) {
     std::optional<Task> task = find_task(dependency.to_string());
@@ -594,54 +594,16 @@ DependencyStatus Interpreter::solve_dependencies(IList<IString> dependencies,
     if (!task) {
       continue;
     }
-    RunTaskType my_func = [this](Task x, std::string y) {
-      return this->run_task(x, y);
-    };
-    // PipelineJobs::BuildJob<RunTaskType> my_job = PipelineJobs::BuildJob{
-    //     my_func,
-    //     *task,
-    //     dependency.to_string(),
-    // };
-    build_jobs.push_back(std::make_shared<PipelineJobs::BuildJob<RunTaskType>>(
-        my_func, *task, dependency.to_string()));
-    // });
-    // pool.push_back(std::thread(&Interpreter::t_run_task, this, *_task,
-    //                            task_iteration.to_string(), error,
-    //                            ContextStack::export_local_stack()));
+    scheduler.schedule_job(
+        std::make_shared<PipelineJobs::BuildJob<RunTaskType>>(
+            [this](Task x, std::string y) { return this->run_task(x, y); },
+            *task, dependency.to_string()));
   }
 
-  if (parallel) {
-    auto scheduler =
-        PipelineScheduler<PipelineSchedulingMode::ParallelUnbound>();
-    for (auto &job_ptr : build_jobs) {
-      scheduler.schedule_job(job_ptr);
-    }
-    scheduler.send_and_await();
-  } else {
-    auto scheduler =
-        PipelineScheduler<PipelineSchedulingMode::SynchronousUnbound>();
-    for (auto &job_ptr : build_jobs) {
-      scheduler.schedule_job(job_ptr);
-    }
-    scheduler.send_and_await();
-  }
-
-  bool success = true;
-  for (auto &job_ptr : build_jobs) {
-    if (job_ptr->had_error()) {
-      success = false;
-      break;
-    }
-  }
+  scheduler.send_and_await();
+  bool success = !scheduler.had_errors();
 
   return {success, latest_modification};
-
-  // if (*error) {
-  //   // error will be pushed in the failing thread.
-  //   ErrorHandler::trigger_report();
-  //   return {false, modified};
-  // } else
-  //   return {true, modified};
 }
 
 void Interpreter::run_task(Task task, std::string task_iteration) {
@@ -691,19 +653,20 @@ void Interpreter::run_task(Task task, std::string task_iteration) {
   LOG_STANDARD(CYAN << "»" << RESET << " starting " << task_iteration);
   if (this->state->setup.dry_run)
     return;
-  OSLayer os_layer(run_parallel, false);
-  for (IString cmdline : command_expr->contents) {
-    os_layer.queue_command({cmdline.to_string(), cmdline.reference});
-  }
-  os_layer.execute_queue();
 
-  // check for errors during execution.
-  if (!os_layer.get_non_zero_commands().empty()) {
-    for (Command const &cmd : os_layer.get_non_zero_commands()) {
-      ErrorHandler::soft_report(ENonZeroProcess{cmd.cmdline, cmd.reference});
-    }
-    ErrorHandler::trigger_report();
+  auto topography = run_parallel ? PipelineSchedulingTopography::Parallel
+                                 : PipelineSchedulingTopography::Sequential;
+  auto scheduler =
+      PipelineScheduler<PipelineSchedulingMethod::Managed>(topography);
+
+  for (IString cmdline : command_expr->contents) {
+    scheduler.schedule_job(std::make_shared<PipelineJobs::ExecuteJob>(
+        cmdline.to_string(), cmdline.reference));
   }
+  scheduler.send_and_await();
+
+  if (scheduler.had_errors())
+    ErrorHandler::trigger_report();
 
   LOG_STANDARD(GREEN << "✓" << RESET << " finished " << task_iteration);
 }

@@ -1,6 +1,7 @@
 #include "errors.hpp"
 #include "format.hpp"
 #include "interpreter.hpp"
+#include "pipeline.hpp"
 #include "tracking.hpp"
 #include <algorithm>
 #include <cassert>

@@ -99,7 +99,7 @@ int Driver::run() {
     interpreter.build();
 
   } catch (BuildException &_) {
-    Pipeline::stop();
+    Pipeline::stop_sync();
     unwind_errors(config);
     LOG_STANDARD("");
     LOG_STANDARD("➤ build " << RED << "failed" << RESET);
@@ -109,7 +109,7 @@ int Driver::run() {
   LOG_STANDARD("➤ build completed");
 
   // shut down required subsystems.
-  Pipeline::stop();
+  Pipeline::stop_sync();
 
   return EXIT_SUCCESS;
 }
