@@ -48,12 +48,6 @@ template <typename T> struct IList : public ICoreType {
   bool operator==(IList const other) const;
 };
 
-// struct IValue : public ICoreType {
-//   std::variant<IString, IBool, IList<IString>, IList<IBool>> data;
-//   bool immutable = true;
-//   // IValue() = delete; // todo: consider implementation
-// };
-
 struct IVisitReference {
   StreamReference operator()(IString istring) { return istring.reference; };
   StreamReference operator()(IBool ibool) { return ibool.reference; };

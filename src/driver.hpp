@@ -1,8 +1,6 @@
 #ifndef DRIVER_H
 #define DRIVER_H
 
-struct Setup;
-// #include "errors.hpp"
 #include <optional>
 #include <string>
 #include <vector>

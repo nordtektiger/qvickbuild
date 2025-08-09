@@ -156,19 +156,6 @@ ErrorRenderer::get_reference_view(std::vector<unsigned char> config,
   return {line_prefix, line_ref, line_suffix, line_num};
 }
 
-// std::string ErrorRenderer::get_rendered_view(ReferenceView reference_view) {
-//   std::string line_str = reference_view.line_str;
-//   size_t line_num = reference_view.line_num;
-//   size_t line_num_length = std::log(line_num) / std::log(10);
-//   std::string underline_prefix(' ',
-//                                line_num_length + 2 +
-//                                reference_view.start_ref);
-//   std::string underline("^", reference_view.end_ref -
-//   reference_view.start_ref); return std::format("{} | {}{}\n{}", line_num,
-//   line_str, underline_prefix,
-//                      underline);
-// }
-
 std::string ErrorRenderer::get_rendered_view(ReferenceView reference_view,
                                              std::string msg) {
   std::string line_prefix = reference_view.line_prefix;

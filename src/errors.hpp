@@ -19,15 +19,10 @@ class ErrorRenderer {
 public:
   static ReferenceView get_reference_view(std::vector<unsigned char> config,
                                           StreamReference reference);
-  static std::string get_rendered_view(ReferenceView reference_view);
   static std::string get_rendered_view(ReferenceView reference_view,
                                        std::string msg);
   static std::string prefix_rendered_view(std::string view, std::string prefix);
-  template <typename T>
-  static std::string
-      stringify_type(T); /* std::variant<ASTObject, IValue, IString, IBool,
-                                  IList<IString>, IList<IBool>>,
-                     std::variant<IList<IString>, IList<IBool>>); */
+  template <typename T> static std::string stringify_type(T);
 };
 
 struct ReferenceView {
@@ -89,17 +84,6 @@ public:
   EReplaceChunksLength() = delete;
   EReplaceChunksLength(IValue);
 };
-
-// class ENoFieldNorDefault : public BuildError {
-// private:
-//   std::string field_name;
-//
-// public:
-//   std::string render_error(std::vector<unsigned char> config) override;
-//   char const *get_exception_msg() override;
-//   ENoFieldNorDefault() = delete;
-//   ENoFieldNorDefault(std::string);
-// };
 
 class EVariableTypeMismatch : public BuildError {
 private:

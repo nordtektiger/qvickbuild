@@ -121,11 +121,11 @@ template <typename T> bool IList<T>::operator==(IList const other) const {
 
 // returns true if, and only if, the passed context can reach the caller.
 bool EvaluationContext::is_reachable_by(EvaluationContext const other) const {
-  if (this->task_scope == other.task_scope &&
-      this->use_globbing == other.use_globbing)
+  // globbing is *not* verified here because only variables are cached, and
+  // variables are by design forced to activate globbing
+  if (this->task_scope == std::nullopt)
     return true;
-  if (this->task_scope == std::nullopt &&
-      this->use_globbing == other.use_globbing)
+  if (this->task_scope == other.task_scope)
     return true;
   return false;
 }
@@ -679,8 +679,7 @@ void Interpreter::build() {
       this->state->topmost_task = task;
 
     IValue identifier =
-        std::visit(ASTEvaluate{{std::nullopt, std::nullopt}, this->state},
-                   task.identifier);
+        evaluate_ast_object(task.identifier, {std::nullopt, std::nullopt});
     IList<IString> identifiers = autocast_strict<IList<IString>>(identifier);
 
     std::shared_ptr<Task> task_ptr = std::make_shared<Task>(task);

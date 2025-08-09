@@ -63,12 +63,6 @@ enum class PipelineSchedulingTopography {
 namespace PipelineSchedulingMethod {
 struct Managed {};
 struct Unbound {};
-using PipelineSchedulingTopography::Sequential;
-using PipelineSchedulingTopography::Parallel;
-// struct SynchronousManaged {};
-// struct SynchronousUnbound {};
-// struct ParallelManaged {};
-// struct ParallelUnbound {};
 }; // namespace PipelineSchedulingMethod
 
 template <typename M> class PipelineScheduler {

@@ -87,12 +87,6 @@ template void
 template void
     PipelineScheduler<PipelineSchedulingMethod::Unbound>::schedule_job(
         std::shared_ptr<PipelineJob>);
-// template void
-//     PipelineScheduler<PipelineSchedulingMethod::ParallelManaged>::schedule_job(
-//         std::shared_ptr<PipelineJob>);
-// template void
-//     PipelineScheduler<PipelineSchedulingMethod::ParallelUnbound>::schedule_job(
-//         std::shared_ptr<PipelineJob>);
 
 template <typename M> bool PipelineScheduler<M>::had_errors() {
   for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer) {
