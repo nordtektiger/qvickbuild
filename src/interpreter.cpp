@@ -554,8 +554,6 @@ using RunTaskType = std::function<void(Task, std::string)>;
 namespace PipelineJobs {
 template <typename F> class BuildJob : public PipelineJob {
 private:
-  // Interpreter *interpreter_ptr;
-  // void (Interpreter::*run_task)(Task, std::string);
   F function_ptr;
   Task task;
   std::string task_iteration;
