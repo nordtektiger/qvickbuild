@@ -22,11 +22,11 @@ int main(int argc, char **argv) {
       }
       setup.input_file = *arg_it;
     } else if (*arg_it == "--log-quiet") {
-      setup.logging_level = LoggingLevel::Quiet;
+      setup.logging_level = LogLevel::Quiet;
     } else if (*arg_it == "--log-standard") {
-      setup.logging_level = LoggingLevel::Standard;
+      setup.logging_level = LogLevel::Standard;
     } else if (*arg_it == "--log-verbose") {
-      setup.logging_level = LoggingLevel::Verbose;
+      setup.logging_level = LogLevel::Verbose;
     } else if (*arg_it == "--dry-run") {
       setup.dry_run = true;
     } else if (*arg_it == "--help") {

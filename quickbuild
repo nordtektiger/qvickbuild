@@ -35,9 +35,12 @@ install_dir = "/usr/bin";
 
 # setup for the build directories.
 "setup" {
-  run_parallel = true;
+  run_parallel = false;
+  # reconstructs directory layout for binary blobs.
   run = "mkdir -p ./obj/debug",
+        "cd ./src && find . -type d -exec mkdir -p -- ../obj/debug/{} \\;",
         "mkdir -p ./obj/release",
+        "cd ./src && find . -type d -exec mkdir -p -- ../obj/release/{} \\;",
         "mkdir -p ./bin";
 }
 

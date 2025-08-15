@@ -533,22 +533,6 @@ Interpreter::evaluate_field_optional_strict(std::string identifier,
   return autocast_strict<T>(*value);
 }
 
-// void Interpreter::t_run_task(Task task, std::string task_iteration,
-//                              std::shared_ptr<std::atomic<bool>> error,
-//                              std::vector<std::shared_ptr<Frame>> local_stack)
-//                              {
-//   try {
-//     ContextStack::import_local_stack(local_stack);
-//     FrameGuard frame{DependencyBuildFrame(task_iteration, task.reference)};
-//     run_task(task, task_iteration);
-//   } catch (...) {
-//     // it's ok to ignore the exception, since the task failure will throw an
-//     // EDependencyFailed regardless, which will unwind the combined error
-//     // stack.
-//     *error = true;
-//   }
-// }
-
 using RunTaskType = std::function<void(Task, std::string)>;
 
 namespace PipelineJobs {

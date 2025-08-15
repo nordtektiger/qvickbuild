@@ -19,37 +19,37 @@
 static std::mutex io_lock;
 
 #define LOG_VERBOSE(msg)                                                       \
-  if (this->state->setup.logging_level >= LoggingLevel::Verbose) {             \
+  if (this->state->setup.logging_level >= LogLevel::Verbose) {                 \
     io_lock.lock();                                                            \
     std::cout << msg << std::endl;                                             \
     io_lock.unlock();                                                          \
   }
 #define LOG_STANDARD(msg)                                                      \
-  if (this->state->setup.logging_level >= LoggingLevel::Standard) {            \
+  if (this->state->setup.logging_level >= LogLevel::Standard) {                \
     io_lock.lock();                                                            \
     std::cout << msg << std::endl;                                             \
     io_lock.unlock();                                                          \
   }
 #define LOG_QUIET(msg)                                                         \
-  if (this->state->setup.logging_level >= LoggingLevel::Quiet) {               \
+  if (this->state->setup.logging_level >= LogLevel::Quiet) {                   \
     io_lock.lock();                                                            \
     std::cout << msg << std::endl;                                             \
     io_lock.unlock();                                                          \
   }
 #define LOG_VERBOSE_NO_NEWLINE(msg)                                            \
-  if (this->state->setup.logging_level >= LoggingLevel::Verbose) {             \
+  if (this->state->setup.logging_level >= LogLevel::Verbose) {                 \
     io_lock.lock();                                                            \
     std::cout << msg << std::flush;                                            \
     io_lock.unlock();                                                          \
   }
 #define LOG_STANDARD_NO_NEWLINE(msg)                                           \
-  if (this->state->setup.logging_level >= LoggingLevel::Standard) {            \
+  if (this->state->setup.logging_level >= LogLevel::Standard) {                \
     io_lock.lock();                                                            \
     std::cout << msg << std::flush;                                            \
     io_lock.unlock();                                                          \
   }
 #define LOG_QUIET_NO_NEWLINE(msg)                                              \
-  if (this->state->setup.logging_level >= LoggingLevel::Quiet) {               \
+  if (this->state->setup.logging_level >= LogLevel::Quiet) {                   \
     io_lock.lock();                                                            \
     std::cout << msg << std::flush;                                            \
     io_lock.unlock();                                                          \

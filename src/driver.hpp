@@ -1,27 +1,22 @@
 #ifndef DRIVER_H
 #define DRIVER_H
 
+#include "cli/cli.hpp"
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
-#include <memory>
 
 enum class InputMethod {
   ConfigFile,
   Stdin,
 };
 
-enum class LoggingLevel {
-  Quiet,
-  Standard,
-  Verbose,
-};
-
 struct Setup {
   std::optional<std::string> task;
   InputMethod input_method;
   std::string input_file; // only used for InputMethod::ConfigFile
-  LoggingLevel logging_level;
+  LogLevel logging_level;
   bool dry_run;
 };
 

@@ -1,7 +1,10 @@
 #include "driver.hpp"
+#include "cli/cli.hpp"
+#include "cli/environment.hpp"
 #include "errors.hpp"
 #include "format.hpp"
 #include "interpreter.hpp"
+#include "kal/platform.hpp"
 #include "lexer.hpp"
 #include "parser.hpp"
 #include "pipeline.hpp"
@@ -20,7 +23,7 @@ Driver::Driver(Setup setup) {
 
 Setup Driver::default_setup() {
   return Setup{std::nullopt, InputMethod::ConfigFile, "quickbuild",
-               LoggingLevel::Standard, false};
+               LogLevel::Standard, false};
 }
 
 std::vector<unsigned char> Driver::get_config() {
@@ -70,10 +73,41 @@ void Driver::unwind_errors(std::vector<unsigned char> config) {
   }
 }
 
+std::string get_version_string() {
+  KALPlatformType platform = KALPlatform::current();
+  switch (platform) {
+  case KALPlatformType::Linux:
+    return "v0.9.0/kal-linux";
+  case KALPlatformType::Windows:
+    return "v0.9.0/kal-windows";
+  case KALPlatformType::Apple:
+    return "v0.9.0/kal-apple";
+  default:
+    assert(false && "driver encountered an unrecognized kal platform");
+  }
+}
+
 int Driver::run() {
-  LOG_STANDARD(BOLD << "[ quickbuild dev v0.8.0 ]" << RESET);
+  LOG_STANDARD(BOLD << "warning: you are running qvickbuild beta "
+                    << get_version_string() << RESET);
 
   // initialize required subsystems.
+  CLICapabilities capabilities = CLIEnvironment::detect_cli_capabilities();
+  LogLevel log_level = this->state->setup.logging_level;
+  CLIOptions cli_options{log_level, capabilities};
+  CLI::initialize(cli_options);
+
+  // debugging purposes: testing the new cli rendering.
+  // auto my_handle = CLI::generate_entry_handle("my_thing", CLIEntryStatus::Scheduled);
+  // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  // my_handle->set_status(CLIEntryStatus::Running);
+  // std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+  // my_handle->set_status(CLIEntryStatus::Finished);
+  // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+  // CLI::stop_sync();
+  // exit(0);
+
   Pipeline::initialize(std::thread::hardware_concurrency());
 
   // config needs to be initialized out of scope so that
@@ -110,6 +144,7 @@ int Driver::run() {
 
   // shut down required subsystems.
   Pipeline::stop_sync();
+  CLI::stop_sync();
 
   return EXIT_SUCCESS;
 }
