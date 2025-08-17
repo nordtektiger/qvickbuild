@@ -1,6 +1,10 @@
 #ifndef CLI_HPP
 #define CLI_HPP
 
+class CLIEntryHandle;
+
+#include "render.hpp"
+#include "colour.hpp"
 #include "environment.hpp"
 #include <atomic>
 #include <chrono>
@@ -58,6 +62,7 @@ struct LogEntry {
 
 class CLI {
 private:
+  static CLIOptions cli_options;
   static std::vector<LogEntry> log_buffer;
   static std::vector<std::shared_ptr<CLIEntryHandle>> entry_handles;
   static std::optional<std::shared_ptr<CLIEntryHandle>>
@@ -67,17 +72,7 @@ private:
   static std::mutex io_lock;
   static std::atomic_bool stop;
 
-  static std::string wrap_with_padding(size_t, std::string);
-  static std::string draw_handle(CLIEntryHandle const &);
-  static void draw();
   static void run();
-  static size_t frame;
-  static char const *spinner_buf[6];
-
-  static void save_position();
-  static void restore_position();
-
-  static CLIOptions cli_options;
 
 public:
   static std::shared_ptr<CLIEntryHandle> generate_entry_handle(std::string,
@@ -94,15 +89,6 @@ public:
 
   static void initialize(CLIOptions);
   static void stop_sync();
-
-  static std::string green();
-  static std::string red();
-  static std::string cyan();
-
-  static std::string bold();
-  static std::string italic();
-  static std::string underline();
-  static std::string reset();
 };
 
 #endif
