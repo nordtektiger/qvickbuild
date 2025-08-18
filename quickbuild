@@ -1,7 +1,7 @@
 # general compiler arguments.
 compiler = "g++";
-# flags_debug = "-g -O0 -Wall -Wextra -pedantic-errors -std=c++20 -fsanitize=address,undefined -D_GLIBCXX_DEBUG";
-flags_debug = "-g -O0 -Wall -Wextra -pedantic-errors -std=c++20 -D_GLIBCXX_DEBUG";
+flags_debug = "-g -O0 -Wall -Wextra -pedantic-errors -std=c++20 -fsanitize=address,undefined -D_GLIBCXX_DEBUG";
+# flags_debug = "-g -O0 -Wall -Wextra -pedantic-errors -std=c++20 -D_GLIBCXX_DEBUG";
 flags_release = "-O3 -Wall -Wextra -pedantic-errors -std=c++20";
 
 # files to compile.

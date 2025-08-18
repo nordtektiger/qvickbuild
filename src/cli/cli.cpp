@@ -13,11 +13,22 @@ CLIEntryHandle::CLIEntryHandle(
   this->status = status;
 }
 
-void CLIEntryHandle::set_status(CLIEntryStatus status) {
+void CLIEntryHandle::set_status_internal(CLIEntryStatus status) {
   // if child handle is doing work, parent is also considered to be doing work.
-  if (status == CLIEntryStatus::Running && this->parent)
-    (*this->parent)->set_status(status);
+  if (status == CLIEntryStatus::Running && this->parent) {
+    std::shared_ptr<CLIEntryHandle> parent_ptr = this->parent->lock();
+    if (parent_ptr)
+      parent_ptr->set_status_internal(status);
+    else
+      assert(false && "parent entry node was destroyed while derived "
+                      "implementations were still active");
+  }
   this->status = status;
+}
+
+void CLIEntryHandle::set_status(CLIEntryStatus status) {
+  std::unique_lock<std::mutex> guard(CLI::io_lock);
+  this->set_status_internal(status);
 }
 
 CLIEntryStatus CLIEntryHandle::get_status() const { return this->status; }
@@ -35,6 +46,7 @@ CLIOptions CLI::cli_options = CLIOptions();
 
 std::shared_ptr<CLIEntryHandle> CLI::generate_entry(std::string description,
                                                     CLIEntryStatus status) {
+  std::unique_lock<std::mutex> guard(CLI::io_lock);
   std::shared_ptr<CLIEntryHandle> handle_ptr =
       std::make_shared<CLIEntryHandle>(description, std::nullopt, status);
   CLI::entry_handles.push_back(handle_ptr);
@@ -44,6 +56,7 @@ std::shared_ptr<CLIEntryHandle> CLI::generate_entry(std::string description,
 std::shared_ptr<CLIEntryHandle>
 CLI::derive_entry_from(std::shared_ptr<CLIEntryHandle> parent,
                        std::string description, CLIEntryStatus status) {
+  std::unique_lock<std::mutex> guard(CLI::io_lock);
   auto handle_ptr =
       std::make_shared<CLIEntryHandle>(description, parent, status);
   parent->children.push_back(handle_ptr);
@@ -53,6 +66,7 @@ CLI::derive_entry_from(std::shared_ptr<CLIEntryHandle> parent,
 // tree search.
 std::shared_ptr<CLIEntryHandle>
 CLI::get_entry_from_description(std::string description) {
+  std::unique_lock<std::mutex> guard(CLI::io_lock);
   for (std::shared_ptr<CLIEntryHandle> const &handle_ptr : CLI::entry_handles) {
     std::optional<std::shared_ptr<CLIEntryHandle>> target;
     if ((target = CLI::search_handle_recursive(description, handle_ptr))) {
@@ -78,8 +92,8 @@ void CLI::destroy_entry_recursive(
   }
 }
 
-
 void CLI::destroy_entry(std::shared_ptr<CLIEntryHandle> target_handle) {
+  std::unique_lock<std::mutex> guard(CLI::io_lock);
   CLI::entry_handles.erase(std::remove(CLI::entry_handles.begin(),
                                        CLI::entry_handles.end(), target_handle),
                            CLI::entry_handles.end());
@@ -119,14 +133,17 @@ void CLI::stop_sync() {
 void CLI::write_to_log(std::string content) { CLI::write_quiet(content); }
 
 void CLI::write_quiet(std::string content) {
+  std::unique_lock<std::mutex> guard(CLI::io_lock);
   CLI::log_buffer.push_back(LogEntry{LogLevel::Quiet, content});
 }
 
 void CLI::write_standard(std::string content) {
+  std::unique_lock<std::mutex> guard(CLI::io_lock);
   CLI::log_buffer.push_back(LogEntry{LogLevel::Standard, content});
 }
 
 void CLI::write_verbose(std::string content) {
+  std::unique_lock<std::mutex> guard(CLI::io_lock);
   CLI::log_buffer.push_back(LogEntry{LogLevel::Verbose, content});
 }
 
@@ -136,6 +153,7 @@ void CLI::run() {
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
+    std::unique_lock<std::mutex> guard(CLI::io_lock);
     std::vector<std::string> logs;
     for (LogEntry const &log_entry : CLI::log_buffer)
       if (log_entry.log_level <= CLI::cli_options.log_level)

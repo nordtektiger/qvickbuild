@@ -30,9 +30,10 @@ class CLIEntryHandle {
 
 private:
   std::string description;
-  std::optional<std::shared_ptr<CLIEntryHandle>> parent;
+  std::optional<std::weak_ptr<CLIEntryHandle>> parent;
   std::vector<std::shared_ptr<CLIEntryHandle>> children;
   CLIEntryStatus status;
+  void set_status_internal(CLIEntryStatus);
 
 public:
   CLIEntryHandle() = delete;
@@ -62,6 +63,8 @@ struct LogEntry {
 };
 
 class CLI {
+  friend class CLIEntryHandle;
+
 private:
   static CLIOptions cli_options;
   static std::vector<LogEntry> log_buffer;
