@@ -533,24 +533,22 @@ Interpreter::evaluate_field_optional_strict(std::string identifier,
   return autocast_strict<T>(*value);
 }
 
-using RunTaskType = std::function<void(Task, std::string)>;
+using RunTaskType = std::function<void(RunContext)>;
 
 namespace PipelineJobs {
 template <typename F> class BuildJob : public PipelineJob {
 private:
   F function_ptr;
-  Task task;
-  std::string task_iteration;
+  RunContext run_context;
 
 public:
-  BuildJob(F function_ptr, Task task, std::string task_iteration)
+  BuildJob(F function_ptr, RunContext run_context)
       : function_ptr(function_ptr) {
-    this->task = task;
-    this->task_iteration = task_iteration;
+    this->run_context = run_context;
   }
   void compute() noexcept {
     try {
-      function_ptr(task, task_iteration);
+      function_ptr(run_context);
     } catch (...) {
       this->report_error();
     }
@@ -559,6 +557,7 @@ public:
 } // namespace PipelineJobs
 
 DependencyStatus Interpreter::solve_dependencies(IList<IString> dependencies,
+                                                 std::string parent_iteration,
                                                  bool parallel) {
   std::optional<size_t> latest_modification;
   auto topography = parallel ? PipelineSchedulingTopography::Parallel
@@ -578,8 +577,8 @@ DependencyStatus Interpreter::solve_dependencies(IList<IString> dependencies,
     }
     scheduler.schedule_job(
         std::make_shared<PipelineJobs::BuildJob<RunTaskType>>(
-            [this](Task x, std::string y) { return this->run_task(x, y); },
-            *task, dependency.to_string()));
+            [this](RunContext x) { return this->run_task(x); },
+            RunContext{*task, dependency.to_string(), parent_iteration}));
   }
 
   scheduler.send_and_await();
@@ -588,13 +587,29 @@ DependencyStatus Interpreter::solve_dependencies(IList<IString> dependencies,
   return {success, latest_modification};
 }
 
-void Interpreter::run_task(Task task, std::string task_iteration) {
+void Interpreter::run_task(RunContext run_context) {
+  Task task = run_context.task;
+  std::string task_iteration = run_context.task_iteration;
+  std::optional<std::string> parent_iteration = run_context.parent_iteration;
 
   // check for recursive dependencies.
   bool recursive = StaticVerify::find_recursive_task(
       ContextStack::dump_flattened_stack(), task_iteration);
-  if (recursive)
+  if (recursive) {
+    // this_entry_handle->set_status(CLIEntryStatus::Failed);
     ErrorHandler::halt(ERecursiveTask{task, task_iteration});
+  }
+
+  std::shared_ptr<CLIEntryHandle> this_entry_handle;
+  if (parent_iteration) {
+    auto parent_entry_handle =
+        CLI::get_entry_from_description(*parent_iteration);
+    this_entry_handle = CLI::derive_entry_from(
+        parent_entry_handle, task_iteration, CLIEntryStatus::Scheduled);
+  } else {
+    this_entry_handle =
+        CLI::generate_entry(task_iteration, CLIEntryStatus::Scheduled);
+  }
 
   // solve dependencies.
   std::optional<IList<IString>> dependencies =
@@ -606,17 +621,21 @@ void Interpreter::run_task(Task task, std::string task_iteration) {
     // it is safe to unwrap the std::optional because we have a default value.
     IBool parallel = *evaluate_field_default_strict<IBool>(
         DEPENDS_PARALLEL, {task, task_iteration}, parallel_default);
-    DependencyStatus dep_stat = solve_dependencies(*dependencies, parallel);
+    DependencyStatus dep_stat =
+        solve_dependencies(*dependencies, task_iteration, parallel);
     dep_modified = dep_stat.modified;
-    if (!dep_stat.success)
+    if (!dep_stat.success) {
+      this_entry_handle->set_status(CLIEntryStatus::Failed);
       ErrorHandler::trigger_report();
+    }
   }
 
   // check for changes.
   std::optional<size_t> this_modified =
       OSLayer::get_file_timestamp(task_iteration);
   if (this_modified && dep_modified && *this_modified >= *dep_modified) {
-    LOG_STANDARD("•" << RESET << " skipped " << task_iteration);
+    CLI::destroy_entry(this_entry_handle);
+    // LOG_STANDARD("•" << RESET << " skipped " << task_iteration);
     return;
   }
 
@@ -625,6 +644,7 @@ void Interpreter::run_task(Task task, std::string task_iteration) {
       evaluate_field_optional_strict<IList<IString>>(RUN,
                                                      {task, task_iteration});
   if (!command_expr) {
+    this_entry_handle->set_status(CLIEntryStatus::Finished);
     return; // abstract task.
   }
   IBool run_parallel_default = IBool(false, task.reference, true);
@@ -632,7 +652,7 @@ void Interpreter::run_task(Task task, std::string task_iteration) {
       RUN_PARALLEL, {task, task_iteration}, run_parallel_default);
 
   // execute task.
-  LOG_STANDARD(CYAN << "»" << RESET << " starting " << task_iteration);
+  // LOG_STANDARD(CYAN << "»" << RESET << " starting " << task_iteration);
   if (this->state->setup.dry_run)
     return;
 
@@ -643,14 +663,17 @@ void Interpreter::run_task(Task task, std::string task_iteration) {
 
   for (IString cmdline : command_expr->contents) {
     scheduler.schedule_job(std::make_shared<PipelineJobs::ExecuteJob>(
-        cmdline.to_string(), cmdline.reference));
+        cmdline.to_string(), cmdline.reference, this_entry_handle));
   }
   scheduler.send_and_await();
 
-  if (scheduler.had_errors())
+  if (scheduler.had_errors()) {
+    this_entry_handle->set_status(CLIEntryStatus::Failed);
     ErrorHandler::trigger_report();
+  }
 
-  LOG_STANDARD(GREEN << "✓" << RESET << " finished " << task_iteration);
+  this_entry_handle->set_status(CLIEntryStatus::Finished);
+  // LOG_STANDARD(GREEN << "✓" << RESET << " finished " << task_iteration);
 }
 
 void Interpreter::build() {
@@ -700,8 +723,10 @@ void Interpreter::build() {
             .to_string();
   }
 
-  LOG_STANDARD("⧗ building " << CYAN << task_iteration << RESET);
+  // auto entry_handle =
+  //     CLI::generate_entry_handle(task_iteration, CLIEntryStatus::Scheduled);
+  // LOG_STANDARD("⧗ building " << CYAN << task_iteration << RESET);
   // todo: error checking is also required here in case task doesn't exist.
   FrameGuard frame{EntryBuildFrame(task_iteration, task->reference)};
-  run_task(*task, task_iteration);
+  run_task(RunContext{*task, task_iteration, std::nullopt});
 }

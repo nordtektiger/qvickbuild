@@ -3,9 +3,9 @@
 
 class CLIEntryHandle;
 
-#include "render.hpp"
 #include "colour.hpp"
 #include "environment.hpp"
+#include "render.hpp"
 #include <atomic>
 #include <chrono>
 #include <memory>
@@ -26,6 +26,7 @@ enum class CLIEntryStatus {
 
 class CLIEntryHandle {
   friend class CLI;
+  friend class CLIRenderer;
 
 private:
   std::string description;
@@ -67,21 +68,24 @@ private:
   static std::vector<std::shared_ptr<CLIEntryHandle>> entry_handles;
   static std::optional<std::shared_ptr<CLIEntryHandle>>
       search_handle_recursive(std::string, std::shared_ptr<CLIEntryHandle>);
+  static void destroy_entry_recursive(std::shared_ptr<CLIEntryHandle>,
+                                      std::shared_ptr<CLIEntryHandle>);
 
   static std::thread io_thread;
   static std::mutex io_lock;
   static std::atomic_bool stop;
-
   static void run();
 
 public:
-  static std::shared_ptr<CLIEntryHandle> generate_entry_handle(std::string,
-                                                               CLIEntryStatus);
+  static std::shared_ptr<CLIEntryHandle> generate_entry(std::string,
+                                                        CLIEntryStatus);
   static std::shared_ptr<CLIEntryHandle>
-      derive_entry_handle_from(std::shared_ptr<CLIEntryHandle>, std::string,
-                               CLIEntryStatus);
+      derive_entry_from(std::shared_ptr<CLIEntryHandle>, std::string,
+                        CLIEntryStatus);
   static std::shared_ptr<CLIEntryHandle>
-      get_entry_handle_from_description(std::string);
+      get_entry_from_description(std::string);
+  static void destroy_entry(std::shared_ptr<CLIEntryHandle>);
+
   static void write_to_log(std::string);
   static void write_verbose(std::string);
   static void write_standard(std::string);

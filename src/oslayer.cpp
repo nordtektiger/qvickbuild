@@ -16,13 +16,16 @@
 #define ST_CTIME st_ctime
 #endif
 
-PipelineJobs::ExecuteJob::ExecuteJob(std::string cmdline,
-                                     StreamReference reference) {
+PipelineJobs::ExecuteJob::ExecuteJob(
+    std::string cmdline, StreamReference reference,
+    std::shared_ptr<CLIEntryHandle> entry_handle) {
   this->cmdline = cmdline;
   this->reference = reference;
+  this->entry_handle = entry_handle;
 }
 
 void PipelineJobs::ExecuteJob::compute() noexcept {
+  this->entry_handle->set_status(CLIEntryStatus::Running);
   int code = system(this->cmdline.c_str());
   if (0 != code) {
     this->report_error();

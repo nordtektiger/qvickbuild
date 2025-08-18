@@ -22,7 +22,7 @@ Driver::Driver(Setup setup) {
 }
 
 Setup Driver::default_setup() {
-  return Setup{std::nullopt, InputMethod::ConfigFile, "quickbuild",
+  return Setup{std::nullopt, InputMethod::ConfigFile, "./quickbuild",
                LogLevel::Standard, false};
 }
 
@@ -96,26 +96,24 @@ int Driver::run() {
   LogLevel log_level = this->state->setup.logging_level;
   CLIOptions cli_options{log_level, capabilities};
   CLI::initialize(cli_options);
-
-  // debugging purposes: testing the new cli rendering.
-  // auto my_handle = CLI::generate_entry_handle("my_thing", CLIEntryStatus::Scheduled);
-  // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  // my_handle->set_status(CLIEntryStatus::Running);
-  // std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-  // my_handle->set_status(CLIEntryStatus::Finished);
-  // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
-  // CLI::stop_sync();
-  // exit(0);
-
   Pipeline::initialize(std::thread::hardware_concurrency());
+
+  // debugging!
+  // CLI::write_to_log(CLIRenderer::wrap_with_padding(2, "2\n2"));
+  // CLI::write_to_log(CLIRenderer::wrap_with_padding(4, "4\n4"));
+  // CLI::write_to_log(CLIRenderer::wrap_with_padding(6, "6\n6"));
+  // auto handle1 = CLI::generate_entry_handle("1", CLIEntryStatus::Running);
+  // auto handle2 = CLI::derive_entry_handle_from(handle1, "2", CLIEntryStatus::Running);
+  // auto handle3 = CLI::derive_entry_handle_from(handle2, "3", CLIEntryStatus::Running);
 
   // config needs to be initialized out of scope so that
   // it can be read when unwinding the error stack.
-  LOG_STANDARD("⧗ compiling config...");
+  // LOG_STANDARD("⧗ compiling config...");
   std::vector<unsigned char> config;
 
   try {
+    auto config_handle = CLI::generate_entry(this->state->setup.input_file, CLIEntryStatus::Running);
+    
     // we still need to read this within the try-catch because
     // the file may not exist, but we still need to render the error
     config = get_config();
@@ -128,12 +126,15 @@ int Driver::run() {
     Parser parser = Parser(token_stream);
     AST ast(parser.parse_tokens());
 
+    config_handle->set_status(CLIEntryStatus::Finished);
+
     // build task.
     Interpreter interpreter(ast, this->state->setup);
     interpreter.build();
 
   } catch (BuildException &_) {
     Pipeline::stop_sync();
+    CLI::stop_sync();
     unwind_errors(config);
     LOG_STANDARD("");
     LOG_STANDARD("➤ build " << RED << "failed" << RESET);

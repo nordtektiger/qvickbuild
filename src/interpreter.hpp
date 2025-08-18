@@ -80,6 +80,12 @@ struct DependencyStatus {
   std::optional<size_t> modified;
 };
 
+struct RunContext {
+  Task task;
+  std::string task_iteration;
+  std::optional<std::string> parent_iteration;
+};
+
 class Interpreter {
 private:
   std::shared_ptr<EvaluationState> state;
@@ -103,8 +109,10 @@ private:
                                 EvaluationContext context,
                                 std::optional<T> default_value);
 
-  void run_task(Task task, std::string task_iteration);
+  // void run_task(Task task, std::string task_iteration);
+  void run_task(RunContext);
   DependencyStatus solve_dependencies(IList<IString> dependencies,
+                                      std::string parent_iteration,
                                       bool parallel);
 
 public:
