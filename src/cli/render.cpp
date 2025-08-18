@@ -83,7 +83,7 @@ std::string CLIRenderer::draw_handle(CLIEntryHandle const &entry_handle) {
   std::string out;
   switch (entry_handle.get_status()) {
   case CLIEntryStatus::Scheduled:
-    out += "⧖ ";
+    out += "… ";
     break;
   case CLIEntryStatus::Running:
     out += CLIColour::cyan() +

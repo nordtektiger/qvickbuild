@@ -98,22 +98,15 @@ int Driver::run() {
   CLI::initialize(cli_options);
   Pipeline::initialize(std::thread::hardware_concurrency());
 
-  // debugging!
-  // CLI::write_to_log(CLIRenderer::wrap_with_padding(2, "2\n2"));
-  // CLI::write_to_log(CLIRenderer::wrap_with_padding(4, "4\n4"));
-  // CLI::write_to_log(CLIRenderer::wrap_with_padding(6, "6\n6"));
-  // auto handle1 = CLI::generate_entry_handle("1", CLIEntryStatus::Running);
-  // auto handle2 = CLI::derive_entry_handle_from(handle1, "2", CLIEntryStatus::Running);
-  // auto handle3 = CLI::derive_entry_handle_from(handle2, "3", CLIEntryStatus::Running);
-
   // config needs to be initialized out of scope so that
   // it can be read when unwinding the error stack.
   // LOG_STANDARD("⧗ compiling config...");
   std::vector<unsigned char> config;
 
   try {
-    auto config_handle = CLI::generate_entry(this->state->setup.input_file, CLIEntryStatus::Running);
-    
+    auto config_handle = CLI::generate_entry(this->state->setup.input_file,
+                                             CLIEntryStatus::Running);
+
     // we still need to read this within the try-catch because
     // the file may not exist, but we still need to render the error
     config = get_config();
@@ -141,11 +134,14 @@ int Driver::run() {
     return EXIT_FAILURE;
   }
 
+  // should ideally be shut down after the pipeline, but until we have footer
+  // and header logging support, we'll need to rely on the legacy macro logging
+  // system for intial and final status updates.
+  CLI::stop_sync();
   LOG_STANDARD("➤ build completed");
 
   // shut down required subsystems.
   Pipeline::stop_sync();
-  CLI::stop_sync();
 
   return EXIT_SUCCESS;
 }
