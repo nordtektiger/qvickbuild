@@ -1,5 +1,6 @@
 #include "render.hpp"
 #include <iostream>
+#include <ranges>
 
 class Counted {
 private:
@@ -8,7 +9,6 @@ private:
 public:
   static size_t reset();
   static std::string count_str(std::string);
-  // friend Counted::stderr operator<<(Counted::stderr, std::string const &);
 };
 
 size_t Counted::count = 0;
@@ -35,6 +35,10 @@ std::string CLIRenderer::move_up(size_t rows) {
 }
 
 std::string CLIRenderer::clear_line() { return "\033[2K"; }
+
+std::string CLIRenderer::hide_cursor() { return "\033[?25l"; }
+
+std::string CLIRenderer::show_cursor() { return "\033[?25h"; }
 
 void CLIRenderer::flush() {
   std::flush(std::cout);
@@ -90,28 +94,40 @@ std::string CLIRenderer::draw_handle(CLIEntryHandle const &entry_handle) {
   return CLIRenderer::wrap_with_padding(0, out);
 }
 
+std::string CLIRenderer::ensure_clear(std::string content) {
+  std::string out = CLIRenderer::clear_line();
+  for (char const &c : content | std::views::take(content.size() - 1)) {
+    out += c;
+    if (c == '\n')
+      out += CLIRenderer::clear_line();
+  }
+  return out + content[content.size() - 1];
+}
+
 void CLIRenderer::draw(
     std::vector<std::string> logs,
     std::vector<std::shared_ptr<CLIEntryHandle>> entry_handles) {
   // reset drawing position.
-  std::string text_buffer = "";
+  std::string text_buffer = CLIRenderer::hide_cursor();
   text_buffer += CLIRenderer::move_up(Counted::reset());
 
   // dump cached log content.
   for (std::string const &log : logs) {
-    text_buffer += CLIRenderer::clear_line();
-    text_buffer += log + "\n";
+    text_buffer += CLIRenderer::ensure_clear(log + "\n");
   }
 
   // draw handles.
   for (std::shared_ptr<CLIEntryHandle> const &handle_ptr : entry_handles) {
-    text_buffer += Counted::count_str(draw_handle(*handle_ptr) + "\n");
+    text_buffer += CLIRenderer::ensure_clear(
+        Counted::count_str(draw_handle(*handle_ptr) + "\n"));
   }
 
   // draw status.
-  text_buffer += Counted::count_str(
+  text_buffer += CLIRenderer::ensure_clear(Counted::count_str(
       "➤ building " + CLIColour::green() + "x tasks" + CLIColour::reset() +
-      " (" + CLIColour::cyan() + "y skipped" + CLIColour::reset() + ")\n");
+      " (" + CLIColour::cyan() + "y skipped" + CLIColour::reset() + ")\n"));
+
+  text_buffer += CLIRenderer::show_cursor();
 
   // flush to terminal.
   std::cout << text_buffer;

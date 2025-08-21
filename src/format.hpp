@@ -1,6 +1,7 @@
 #ifndef FORMAT_H
 #define FORMAT_H
 
+
 #include <iostream>
 #include <mutex>
 #include <ostream>
