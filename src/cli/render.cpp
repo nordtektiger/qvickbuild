@@ -6,17 +6,9 @@ private:
   static size_t count;
 
 public:
-  // enum structure inspired by prowaretech's custom std::cin and std::cout.
-  // https://www.prowaretech.com/articles/current/c-plus-plus/implement-std-cin-and-std-cout
-  enum stdout {
-    cout,
-  };
-  enum stderr {
-    cerr,
-  };
   static size_t reset();
-  friend Counted::stdout operator<<(Counted::stdout, std::string const &);
-  friend Counted::stderr operator<<(Counted::stderr, std::string const &);
+  static std::string count_str(std::string);
+  // friend Counted::stderr operator<<(Counted::stderr, std::string const &);
 };
 
 size_t Counted::count = 0;
@@ -27,30 +19,22 @@ size_t Counted::reset() {
   return _count;
 }
 
-Counted::stdout operator<<(Counted::stdout stdout, std::string const &content) {
+std::string Counted::count_str(std::string content) {
   Counted::count += std::count_if(content.begin(), content.end(),
                                   [](char c) { return c == '\n'; });
-  std::cout << content;
-  return stdout;
-}
-
-Counted::stderr operator<<(Counted::stderr stderr, std::string const &content) {
-  Counted::count += std::count_if(content.begin(), content.end(),
-                                  [](char c) { return c == '\n'; });
-  std::cerr << content;
-  return stderr;
+  return content;
 }
 
 char const *CLIRenderer::spinner_buf[6] = {"⠏ ", "⠛ ", "⠹ ", "⠼ ", "⠶ ", "⠧ "};
 size_t CLIRenderer::frame = 0;
 
-void CLIRenderer::move_up(size_t rows) {
+std::string CLIRenderer::move_up(size_t rows) {
   if (rows == 0)
-    return;
-  std::cout << "\033[" << rows << "A";
+    return "";
+  return "\033[" + std::to_string(rows) + "A";
 }
 
-void CLIRenderer::clear_line() { std::cout << "\033[2K"; }
+std::string CLIRenderer::clear_line() { return "\033[2K"; }
 
 void CLIRenderer::flush() {
   std::flush(std::cout);
@@ -110,24 +94,27 @@ void CLIRenderer::draw(
     std::vector<std::string> logs,
     std::vector<std::shared_ptr<CLIEntryHandle>> entry_handles) {
   // reset drawing position.
-  CLIRenderer::move_up(Counted::reset());
+  std::string text_buffer = "";
+  text_buffer += CLIRenderer::move_up(Counted::reset());
 
   // dump cached log content.
   for (std::string const &log : logs) {
-    CLIRenderer::clear_line();
-    std::cout << log << "\n";
+    text_buffer += CLIRenderer::clear_line();
+    text_buffer += log + "\n";
   }
 
   // draw handles.
   for (std::shared_ptr<CLIEntryHandle> const &handle_ptr : entry_handles) {
-    CLIRenderer::clear_line();
-    Counted::cout << draw_handle(*handle_ptr) << "\n";
+    text_buffer += Counted::count_str(draw_handle(*handle_ptr) + "\n");
   }
 
   // draw status.
-  Counted::cout << CLIColour::green() << "building x tasks" << CLIColour::reset() << "\n";
+  text_buffer += Counted::count_str(
+      "➤ building " + CLIColour::green() + "x tasks" + CLIColour::reset() +
+      " (" + CLIColour::cyan() + "y skipped" + CLIColour::reset() + ")\n");
 
   // flush to terminal.
+  std::cout << text_buffer;
   CLIRenderer::flush();
   CLIRenderer::frame++;
 }
