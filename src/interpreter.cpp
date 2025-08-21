@@ -556,10 +556,36 @@ public:
 };
 } // namespace PipelineJobs
 
-DependencyStatus Interpreter::solve_dependencies(IList<IString> dependencies,
-                                                 std::string parent_iteration,
-                                                 bool parallel) {
-  std::optional<size_t> latest_modification;
+size_t
+Interpreter::compute_latest_dependency_change(IList<IString> dependencies) {
+  // std::optional<size_t> latest_modification;
+  size_t latest_modification = 0;
+  for (IString dependency : dependencies.contents) {
+    std::optional<Task> task = find_task(dependency.to_string());
+    std::optional<size_t> modified_i =
+        OSLayer::get_file_timestamp(dependency.to_string());
+    if (modified_i && latest_modification < modified_i)
+      latest_modification = *modified_i;
+    if (!task) {
+      continue;
+    }
+    std::optional<IList<IString>> dependencies_recursive =
+        evaluate_field_optional_strict<IList<IString>>(
+            DEPENDS, {task, dependency.to_string()});
+    if (dependencies_recursive) {
+      size_t modification_recursive =
+          compute_latest_dependency_change(*dependencies_recursive);
+      if (latest_modification < modification_recursive)
+        latest_modification = modification_recursive;
+    }
+  }
+  return latest_modification;
+}
+
+void Interpreter::solve_dependencies(IList<IString> dependencies,
+                                     std::string parent_iteration,
+                                     bool parallel) {
+  // std::optional<size_t> latest_modification;
   auto topography = parallel ? PipelineSchedulingTopography::Parallel
                              : PipelineSchedulingTopography::Sequential;
   auto scheduler =
@@ -567,11 +593,11 @@ DependencyStatus Interpreter::solve_dependencies(IList<IString> dependencies,
 
   for (IString dependency : dependencies.contents) {
     std::optional<Task> task = find_task(dependency.to_string());
-    std::optional<size_t> modified_i =
-        OSLayer::get_file_timestamp(dependency.to_string());
-    if (!latest_modification ||
-        (modified_i && latest_modification < modified_i))
-      latest_modification = modified_i;
+    // std::optional<size_t> modified_i =
+    //     OSLayer::get_file_timestamp(dependency.to_string());
+    // if (!latest_modification ||
+    //     (modified_i && latest_modification < modified_i))
+    //   latest_modification = modified_i;
     if (!task) {
       continue;
     }
@@ -582,9 +608,11 @@ DependencyStatus Interpreter::solve_dependencies(IList<IString> dependencies,
   }
 
   scheduler.send_and_await();
-  bool success = !scheduler.had_errors();
+  // bool success = !scheduler.had_errors();
+  if (scheduler.had_errors())
+    ErrorHandler::trigger_report();
 
-  return {success, latest_modification};
+  // return {success, latest_modification};
 }
 
 void Interpreter::run_task(RunContext run_context) {
@@ -601,6 +629,28 @@ void Interpreter::run_task(RunContext run_context) {
   }
 
   std::shared_ptr<CLIEntryHandle> this_entry_handle;
+
+  std::optional<IList<IString>> dependencies =
+      evaluate_field_optional_strict<IList<IString>>(DEPENDS,
+                                                     {task, task_iteration});
+
+  // check for cached dependencies.
+  bool dependency_build_required = false;
+  if (dependencies) {
+    size_t latest_dependency_change =
+        compute_latest_dependency_change(*dependencies);
+    std::optional<size_t> latest_this_change =
+        OSLayer::get_file_timestamp(task_iteration);
+    if (latest_this_change && *latest_this_change >= latest_dependency_change) {
+      // todo: do we really know that the dependencies don't need to be rebuilt?
+      return;
+    }
+    // task needs to be rebuilt.
+    dependency_build_required = true;
+  }
+
+  // handle is generated here because we know for a fact that the task will need
+  // to be rebuilt - we have already checked that it isn't cached.
   if (parent_iteration) {
     auto parent_entry_handle =
         CLI::get_entry_from_description(*parent_iteration);
@@ -611,32 +661,12 @@ void Interpreter::run_task(RunContext run_context) {
         CLI::generate_entry(task_iteration, CLIEntryStatus::Scheduled);
   }
 
-  // solve dependencies.
-  std::optional<IList<IString>> dependencies =
-      evaluate_field_optional_strict<IList<IString>>(DEPENDS,
-                                                     {task, task_iteration});
-  std::optional<size_t> dep_modified;
-  if (dependencies) {
+  if (dependency_build_required) {
     IBool parallel_default = IBool(false, task.reference, IMMUTABLE);
     // it is safe to unwrap the std::optional because we have a default value.
     IBool parallel = *evaluate_field_default_strict<IBool>(
         DEPENDS_PARALLEL, {task, task_iteration}, parallel_default);
-    DependencyStatus dep_stat =
-        solve_dependencies(*dependencies, task_iteration, parallel);
-    dep_modified = dep_stat.modified;
-    if (!dep_stat.success) {
-      this_entry_handle->set_status(CLIEntryStatus::Failed);
-      ErrorHandler::trigger_report();
-    }
-  }
-
-  // check for changes.
-  std::optional<size_t> this_modified =
-      OSLayer::get_file_timestamp(task_iteration);
-  if (this_modified && dep_modified && *this_modified >= *dep_modified) {
-    CLI::destroy_entry(this_entry_handle);
-    // LOG_STANDARD("•" << RESET << " skipped " << task_iteration);
-    return;
+    solve_dependencies(*dependencies, task_iteration, parallel);
   }
 
   // execution related fields.

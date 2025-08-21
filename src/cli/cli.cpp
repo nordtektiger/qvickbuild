@@ -76,31 +76,31 @@ CLI::get_entry_from_description(std::string description) {
   assert(false && "attempt to get nonexistent handle from description");
 }
 
-void CLI::destroy_entry_recursive(
-    std::shared_ptr<CLIEntryHandle> target_handle,
-    std::shared_ptr<CLIEntryHandle> parent_handle) {
-
-  parent_handle->children.erase(
-      std::remove_if(parent_handle->children.begin(),
-                     parent_handle->children.end(),
-                     [target_handle](std::shared_ptr<CLIEntryHandle> x) {
-                       return x == target_handle;
-                     }),
-      parent_handle->children.end());
-  for (std::shared_ptr<CLIEntryHandle> entry : parent_handle->children) {
-    destroy_entry_recursive(target_handle, entry);
-  }
-}
-
-void CLI::destroy_entry(std::shared_ptr<CLIEntryHandle> target_handle) {
-  std::unique_lock<std::mutex> guard(CLI::io_lock);
-  CLI::entry_handles.erase(std::remove(CLI::entry_handles.begin(),
-                                       CLI::entry_handles.end(), target_handle),
-                           CLI::entry_handles.end());
-  for (std::shared_ptr<CLIEntryHandle> &entry : CLI::entry_handles) {
-    destroy_entry_recursive(target_handle, entry);
-  }
-}
+// void CLI::destroy_entry_recursive(
+//     std::shared_ptr<CLIEntryHandle> target_handle,
+//     std::shared_ptr<CLIEntryHandle> parent_handle) {
+// 
+//   parent_handle->children.erase(
+//       std::remove_if(parent_handle->children.begin(),
+//                      parent_handle->children.end(),
+//                      [target_handle](std::shared_ptr<CLIEntryHandle> x) {
+//                        return x == target_handle;
+//                      }),
+//       parent_handle->children.end());
+//   for (std::shared_ptr<CLIEntryHandle> entry : parent_handle->children) {
+//     destroy_entry_recursive(target_handle, entry);
+//   }
+// }
+// 
+// void CLI::destroy_entry(std::shared_ptr<CLIEntryHandle> target_handle) {
+//   std::unique_lock<std::mutex> guard(CLI::io_lock);
+//   CLI::entry_handles.erase(std::remove(CLI::entry_handles.begin(),
+//                                        CLI::entry_handles.end(), target_handle),
+//                            CLI::entry_handles.end());
+//   for (std::shared_ptr<CLIEntryHandle> &entry : CLI::entry_handles) {
+//     destroy_entry_recursive(target_handle, entry);
+//   }
+// }
 
 std::optional<std::shared_ptr<CLIEntryHandle>>
 CLI::search_handle_recursive(std::string description,

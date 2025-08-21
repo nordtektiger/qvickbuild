@@ -111,9 +111,12 @@ private:
 
   // void run_task(Task task, std::string task_iteration);
   void run_task(RunContext);
-  DependencyStatus solve_dependencies(IList<IString> dependencies,
-                                      std::string parent_iteration,
-                                      bool parallel);
+  size_t compute_latest_dependency_change(IList<IString> dependencies);
+  // DependencyStatus solve_dependencies(IList<IString> dependencies,
+  //                                     std::string parent_iteration,
+  //                                     bool parallel);
+  void solve_dependencies(IList<IString> dependencies,
+                          std::string parent_iteration, bool parallel);
 
 public:
   Interpreter(AST &ast, Setup &setup);
