@@ -33,6 +33,7 @@ private:
   std::optional<std::weak_ptr<CLIEntryHandle>> parent;
   std::vector<std::shared_ptr<CLIEntryHandle>> children;
   CLIEntryStatus status;
+  bool highlighted;
   void set_status_internal(CLIEntryStatus);
 
 public:
@@ -42,6 +43,7 @@ public:
                           CLIEntryStatus);
 
   void set_status(CLIEntryStatus);
+  void set_highlighted(bool);
   CLIEntryStatus get_status() const;
   std::string get_description() const;
 };
@@ -82,10 +84,12 @@ private:
 
   static size_t compute_percentage_done();
   static size_t get_tasks_scheduled();
+  static size_t get_tasks_scheduled(CLIEntryHandle);
   static size_t get_tasks_compiled();
+  static size_t get_tasks_compiled(CLIEntryHandle);
   static size_t get_tasks_skipped();
 
-  // static size_t tasks_skipped;
+  static size_t tasks_skipped;
 
 public:
   static std::shared_ptr<CLIEntryHandle> generate_entry(std::string,

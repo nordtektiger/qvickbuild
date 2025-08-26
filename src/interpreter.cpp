@@ -643,6 +643,7 @@ void Interpreter::run_task(RunContext run_context) {
         OSLayer::get_file_timestamp(task_iteration);
     if (latest_this_change && *latest_this_change >= latest_dependency_change) {
       // todo: do we really know that the dependencies don't need to be rebuilt?
+      CLI::increment_skipped_tasks();
       return;
     }
     // task needs to be rebuilt.
@@ -659,6 +660,7 @@ void Interpreter::run_task(RunContext run_context) {
   } else {
     this_entry_handle =
         CLI::generate_entry(task_iteration, CLIEntryStatus::Scheduled);
+    this_entry_handle->set_highlighted(true);
   }
 
   if (dependency_build_required) {

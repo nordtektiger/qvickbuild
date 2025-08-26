@@ -85,9 +85,13 @@ std::string CLIRenderer::draw_handle(CLIEntryHandle const &entry_handle) {
     out += CLIColour::green() + "✔ " + CLIColour::reset();
     break;
   }
+  if (entry_handle.highlighted)
+    out += CLIColour::bold();
   out += entry_handle.get_description();
+  out += CLIColour::reset();
   std::vector<std::shared_ptr<CLIEntryHandle>> entry_children =
       entry_handle.children;
+  // sort entires based on status.
   std::sort(
       entry_children.begin(), entry_children.end(),
       [](std::shared_ptr<CLIEntryHandle> a, std::shared_ptr<CLIEntryHandle> b) {
@@ -130,14 +134,14 @@ void CLIRenderer::draw(
   }
 
   // draw status.
-  // text_buffer += CLIRenderer::ensure_clear(Counted::count_str(
-  //     "«" + CLIColour::green() +
-  //     std::to_string(CLI::compute_percentage_done()) + CLIColour::reset() +
-  //     "»" + " built " + CLIColour::cyan() +
-  //     std::to_string(CLI::get_tasks_compiled()) + CLIColour::reset() +
-  //     " tasks" + " (" + CLIColour::cyan() + "y skipped" + CLIColour::reset()
-  //     +
-  //     ")\n"));
+  text_buffer += CLIRenderer::ensure_clear(Counted::count_str(
+      CLIColour::bold() + "[" + CLIColour::green() +
+      std::to_string(CLI::compute_percentage_done()) + "%" +
+      CLIColour::reset() + CLIColour::bold() + "]: built " + CLIColour::cyan() +
+      std::to_string(CLI::get_tasks_compiled()) + CLIColour::reset() +
+      CLIColour::bold() + " tasks" + " (" + CLIColour::cyan() +
+      std::to_string(CLI::get_tasks_skipped()) + CLIColour::reset() +
+      CLIColour::bold() + " skipped)\n"));
 
   text_buffer += CLIRenderer::show_cursor();
 

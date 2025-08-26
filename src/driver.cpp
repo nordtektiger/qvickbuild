@@ -88,8 +88,8 @@ std::string get_version_string() {
 }
 
 int Driver::run() {
-  LOG_STANDARD(BOLD << "warning: you are running qvickbuild beta "
-                    << get_version_string() << RESET);
+  // LOG_STANDARD(BOLD << "warning: you are running qvickbuild beta "
+  //                   << get_version_string() << RESET);
 
   // initialize required subsystems.
   CLICapabilities capabilities = CLIEnvironment::detect_cli_capabilities();
@@ -104,8 +104,8 @@ int Driver::run() {
   std::vector<unsigned char> config;
 
   try {
-    auto config_handle = CLI::generate_entry(this->state->setup.input_file,
-                                             CLIEntryStatus::Running);
+    // auto config_handle = CLI::generate_entry(this->state->setup.input_file,
+    //                                          CLIEntryStatus::Running);
 
     // we still need to read this within the try-catch because
     // the file may not exist, but we still need to render the error
@@ -119,7 +119,7 @@ int Driver::run() {
     Parser parser = Parser(token_stream);
     AST ast(parser.parse_tokens());
 
-    config_handle->set_status(CLIEntryStatus::Finished);
+    // config_handle->set_status(CLIEntryStatus::Finished);
 
     // build task.
     Interpreter interpreter(ast, this->state->setup);
@@ -138,7 +138,7 @@ int Driver::run() {
   // and header logging support, we'll need to rely on the legacy macro logging
   // system for intial and final status updates.
   CLI::stop_sync();
-  LOG_STANDARD("➤ build completed");
+  // LOG_STANDARD("➤ build completed");
 
   // shut down required subsystems.
   Pipeline::stop_sync();

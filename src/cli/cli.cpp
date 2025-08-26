@@ -11,6 +11,11 @@ CLIEntryHandle::CLIEntryHandle(
   this->parent = parent;
   this->children = {};
   this->status = status;
+  this->highlighted = false;
+}
+
+void CLIEntryHandle::set_highlighted(bool highlighted) {
+  this->highlighted = highlighted;
 }
 
 void CLIEntryHandle::set_status_internal(CLIEntryStatus status) {
@@ -42,6 +47,7 @@ std::vector<std::shared_ptr<CLIEntryHandle>> CLI::entry_handles = {};
 std::thread CLI::io_thread = std::thread();
 std::mutex CLI::io_lock = std::mutex();
 std::atomic_bool CLI::stop = false;
+size_t CLI::tasks_skipped = 0;
 CLIOptions CLI::cli_options = CLIOptions();
 
 std::shared_ptr<CLIEntryHandle> CLI::generate_entry(std::string description,
@@ -79,7 +85,7 @@ CLI::get_entry_from_description(std::string description) {
 // void CLI::destroy_entry_recursive(
 //     std::shared_ptr<CLIEntryHandle> target_handle,
 //     std::shared_ptr<CLIEntryHandle> parent_handle) {
-// 
+//
 //   parent_handle->children.erase(
 //       std::remove_if(parent_handle->children.begin(),
 //                      parent_handle->children.end(),
@@ -91,11 +97,12 @@ CLI::get_entry_from_description(std::string description) {
 //     destroy_entry_recursive(target_handle, entry);
 //   }
 // }
-// 
+//
 // void CLI::destroy_entry(std::shared_ptr<CLIEntryHandle> target_handle) {
 //   std::unique_lock<std::mutex> guard(CLI::io_lock);
 //   CLI::entry_handles.erase(std::remove(CLI::entry_handles.begin(),
-//                                        CLI::entry_handles.end(), target_handle),
+//                                        CLI::entry_handles.end(),
+//                                        target_handle),
 //                            CLI::entry_handles.end());
 //   for (std::shared_ptr<CLIEntryHandle> &entry : CLI::entry_handles) {
 //     destroy_entry_recursive(target_handle, entry);
@@ -147,8 +154,39 @@ void CLI::write_verbose(std::string content) {
   CLI::log_buffer.push_back(LogEntry{LogLevel::Verbose, content});
 }
 
-void CLI::increment_skipped_tasks() {
-  // CLI::tasks_skipped++;
+void CLI::increment_skipped_tasks() { CLI::tasks_skipped++; }
+
+size_t CLI::get_tasks_skipped() { return CLI::tasks_skipped; }
+size_t CLI::get_tasks_scheduled() {
+  size_t sum = 0;
+  for (std::shared_ptr<CLIEntryHandle> entry : CLI::entry_handles)
+    sum += get_tasks_scheduled(*entry);
+  return sum;
+}
+size_t CLI::get_tasks_scheduled(CLIEntryHandle entry) {
+  size_t sum = 1;
+  for (std::shared_ptr<CLIEntryHandle> child : entry.children)
+    sum += CLI::get_tasks_scheduled(*child);
+  return sum;
+}
+size_t CLI::get_tasks_compiled() {
+  size_t sum = 0;
+  for (std::shared_ptr<CLIEntryHandle> entry : CLI::entry_handles)
+    sum += get_tasks_compiled(*entry);
+  return sum;
+}
+size_t CLI::get_tasks_compiled(CLIEntryHandle entry) {
+  size_t sum = entry.get_status() == CLIEntryStatus::Finished;
+  for (std::shared_ptr<CLIEntryHandle> child : entry.children)
+    sum += get_tasks_compiled(*child);
+  return sum;
+}
+
+size_t CLI::compute_percentage_done() {
+  size_t tasks_scheduled = CLI::get_tasks_scheduled();
+  if (tasks_scheduled == 0)
+    return 0;
+  return (CLI::get_tasks_compiled() * 100) / (tasks_scheduled);
 }
 
 void CLI::run() {
@@ -162,9 +200,8 @@ void CLI::run() {
       if (log_entry.log_level <= CLI::cli_options.log_level)
         logs.push_back(log_entry.content);
     CLI::log_buffer.clear();
-    
+
     // render frame.
     CLIRenderer::draw(logs, CLI::entry_handles);
-
   }
 }
