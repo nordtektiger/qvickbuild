@@ -147,23 +147,24 @@ void CLI::write_verbose(std::string content) {
   CLI::log_buffer.push_back(LogEntry{LogLevel::Verbose, content});
 }
 
+void CLI::increment_skipped_tasks() {
+  // CLI::tasks_skipped++;
+}
+
 void CLI::run() {
   while (!CLI::stop) {
-    std::this_thread::sleep_for(DRAW_TIMEOUT /* - delta */);
+    std::this_thread::sleep_for(DRAW_TIMEOUT);
 
-    auto start_time = std::chrono::high_resolution_clock::now();
-
+    // collect appropriate logs.
     std::unique_lock<std::mutex> guard(CLI::io_lock);
     std::vector<std::string> logs;
     for (LogEntry const &log_entry : CLI::log_buffer)
       if (log_entry.log_level <= CLI::cli_options.log_level)
         logs.push_back(log_entry.content);
     CLI::log_buffer.clear();
-
+    
+    // render frame.
     CLIRenderer::draw(logs, CLI::entry_handles);
 
-    auto stop_time = std::chrono::high_resolution_clock::now();
-    auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(
-        stop_time - start_time);
   }
 }

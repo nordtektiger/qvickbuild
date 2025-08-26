@@ -86,8 +86,15 @@ std::string CLIRenderer::draw_handle(CLIEntryHandle const &entry_handle) {
     break;
   }
   out += entry_handle.get_description();
-  for (std::shared_ptr<CLIEntryHandle> const &child_handle :
-       entry_handle.children) {
+  std::vector<std::shared_ptr<CLIEntryHandle>> entry_children =
+      entry_handle.children;
+  std::sort(
+      entry_children.begin(), entry_children.end(),
+      [](std::shared_ptr<CLIEntryHandle> a, std::shared_ptr<CLIEntryHandle> b) {
+        return static_cast<int>(a->get_status()) >
+               static_cast<int>(b->get_status());
+      });
+  for (std::shared_ptr<CLIEntryHandle> const &child_handle : entry_children) {
     out += "\n" + CLIRenderer::wrap_with_padding(
                       2, CLIRenderer::draw_handle(*child_handle));
   }
@@ -123,9 +130,14 @@ void CLIRenderer::draw(
   }
 
   // draw status.
-  text_buffer += CLIRenderer::ensure_clear(Counted::count_str(
-      "➤ building " + CLIColour::green() + "x tasks" + CLIColour::reset() +
-      " (" + CLIColour::cyan() + "y skipped" + CLIColour::reset() + ")\n"));
+  // text_buffer += CLIRenderer::ensure_clear(Counted::count_str(
+  //     "«" + CLIColour::green() +
+  //     std::to_string(CLI::compute_percentage_done()) + CLIColour::reset() +
+  //     "»" + " built " + CLIColour::cyan() +
+  //     std::to_string(CLI::get_tasks_compiled()) + CLIColour::reset() +
+  //     " tasks" + " (" + CLIColour::cyan() + "y skipped" + CLIColour::reset()
+  //     +
+  //     ")\n"));
 
   text_buffer += CLIRenderer::show_cursor();
 

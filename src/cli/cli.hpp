@@ -20,8 +20,8 @@ class CLIEntryHandle;
 enum class CLIEntryStatus {
   Scheduled,
   Running,
-  Failed,
   Finished,
+  Failed,
 };
 
 class CLIEntryHandle {
@@ -64,6 +64,7 @@ struct LogEntry {
 
 class CLI {
   friend class CLIEntryHandle;
+  friend class CLIRenderer;
 
 private:
   static CLIOptions cli_options;
@@ -79,6 +80,13 @@ private:
   static std::atomic_bool stop;
   static void run();
 
+  static size_t compute_percentage_done();
+  static size_t get_tasks_scheduled();
+  static size_t get_tasks_compiled();
+  static size_t get_tasks_skipped();
+
+  // static size_t tasks_skipped;
+
 public:
   static std::shared_ptr<CLIEntryHandle> generate_entry(std::string,
                                                         CLIEntryStatus);
@@ -93,6 +101,8 @@ public:
   static void write_verbose(std::string);
   static void write_standard(std::string);
   static void write_quiet(std::string);
+
+  static void increment_skipped_tasks();
 
   static void initialize(CLIOptions);
   static void stop_sync();
