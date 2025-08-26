@@ -141,7 +141,7 @@ void CLIRenderer::draw(
       std::to_string(CLI::get_tasks_compiled()) + CLIColour::reset() +
       CLIColour::bold() + " tasks" + " (" + CLIColour::cyan() +
       std::to_string(CLI::get_tasks_skipped()) + CLIColour::reset() +
-      CLIColour::bold() + " skipped)\n"));
+      CLIColour::bold() + " skipped)\n") + CLIColour::reset());
 
   text_buffer += CLIRenderer::show_cursor();
 
