@@ -137,7 +137,7 @@ void CLIRenderer::draw(
   text_buffer += CLIRenderer::ensure_clear(Counted::count_str(
       CLIColour::bold() + "[" + CLIColour::green() +
       std::to_string(CLI::compute_percentage_done()) + "%" +
-      CLIColour::reset() + CLIColour::bold() + "]: built " + CLIColour::cyan() +
+      CLIColour::reset() + CLIColour::bold() + "] built " + CLIColour::cyan() +
       std::to_string(CLI::get_tasks_compiled()) + CLIColour::reset() +
       CLIColour::bold() + " tasks" + " (" + CLIColour::cyan() +
       std::to_string(CLI::get_tasks_skipped()) + CLIColour::reset() +
