@@ -1,5 +1,6 @@
 #include "render.hpp"
 #include <iostream>
+#include <locale>
 #include <ranges>
 
 class Counted {
@@ -45,24 +46,61 @@ void CLIRenderer::flush() {
   std::flush(std::cerr);
 }
 
+std::tuple<std::string, size_t>
+CLIRenderer::get_initial_rendered_characters(std::string str,
+                                             size_t max_width) {
+  size_t count = 0; // rendered characters.
+  size_t i = 0;     // underlying string index.
+  for (; i < str.size(); i++) {
+    // check for non-rendered characters.
+    if (str[i] == '\n') {
+      return {str.substr(0, i), i + 1};
+      continue;
+    } else if (str[i] == '\r')
+      continue;
+    else if (str[i] == '\t')
+      continue;
+    else if (str[i] == '\033') {
+      // handle ansi escape sequences.
+      do {
+        i++;
+      } while (!std::isalpha(str[i]));
+      // i will be incremented once more at the top of the loop.
+      continue;
+    }
+
+    // check that we're not overstepping our maximum width.
+    if (count >= max_width)
+      break;
+
+    // if we get here, the character should render.
+    count++;
+  }
+  return {str.substr(0, i), i};
+}
+
 std::string CLIRenderer::wrap_with_padding(size_t padding,
                                            std::string content) {
   size_t width = CLIEnvironment::detect_width();
   std::string padding_str = std::string(padding, ' ');
   std::string formatted = padding_str;
 
-  size_t last_newline = -1;
-  for (size_t i = 0; i < content.size(); i++) {
-    if (content[i] == '\n') {
-      last_newline = i;
-      formatted += '\n' + padding_str;
-      continue;
-    } else if ((i - last_newline) % width == 0 && i != 0) {
-      formatted += '\n';
-      formatted += padding_str;
-    }
-    formatted += content[i];
+  std::string line_buffer;
+  size_t bytes_consumed;
+
+  std::tie(line_buffer, bytes_consumed) =
+      CLIRenderer::get_initial_rendered_characters(content, width);
+
+  while (bytes_consumed != 0) {
+    formatted += padding_str + line_buffer + "\n";
+    content = content.substr(bytes_consumed, content.size() - bytes_consumed);
+    std::tie(line_buffer, bytes_consumed) =
+        CLIRenderer::get_initial_rendered_characters(content, width);
   }
+
+  // trim last newline to comply with old behaviour.
+  if (formatted[formatted.size() - 1] == '\n')
+    formatted = formatted.substr(0, formatted.size() - 1);
 
   return formatted;
 }
@@ -135,13 +173,15 @@ void CLIRenderer::draw(
 
   // draw status.
   text_buffer += CLIRenderer::ensure_clear(Counted::count_str(
-      CLIColour::bold() + "[" + CLIColour::green() +
-      std::to_string(CLI::compute_percentage_done()) + "%" +
-      CLIColour::reset() + CLIColour::bold() + "] built " + CLIColour::cyan() +
-      std::to_string(CLI::get_tasks_compiled()) + CLIColour::reset() +
-      CLIColour::bold() + " tasks" + " (" + CLIColour::cyan() +
-      std::to_string(CLI::get_tasks_skipped()) + CLIColour::reset() +
-      CLIColour::bold() + " skipped)\n") + CLIColour::reset());
+      CLIRenderer::wrap_with_padding(
+          0, CLIColour::bold() + "[" + CLIColour::green() +
+                 std::to_string(CLI::compute_percentage_done()) + "%" +
+                 CLIColour::reset() + CLIColour::bold() + "] built " +
+                 CLIColour::cyan() + std::to_string(CLI::get_tasks_compiled()) +
+                 CLIColour::reset() + CLIColour::bold() + " tasks" + " (" +
+                 CLIColour::cyan() + std::to_string(CLI::get_tasks_skipped()) +
+                 CLIColour::reset() + CLIColour::bold() + " skipped)\n") +
+      CLIColour::reset()));
 
   text_buffer += CLIRenderer::show_cursor();
 

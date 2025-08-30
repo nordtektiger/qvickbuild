@@ -100,13 +100,9 @@ int Driver::run() {
 
   // config needs to be initialized out of scope so that
   // it can be read when unwinding the error stack.
-  // LOG_STANDARD("⧗ compiling config...");
   std::vector<unsigned char> config;
 
   try {
-    // auto config_handle = CLI::generate_entry(this->state->setup.input_file,
-    //                                          CLIEntryStatus::Running);
-
     // we still need to read this within the try-catch because
     // the file may not exist, but we still need to render the error
     config = get_config();
@@ -118,8 +114,6 @@ int Driver::run() {
 
     Parser parser = Parser(token_stream);
     AST ast(parser.parse_tokens());
-
-    // config_handle->set_status(CLIEntryStatus::Finished);
 
     // build task.
     Interpreter interpreter(ast, this->state->setup);
@@ -134,13 +128,8 @@ int Driver::run() {
     return EXIT_FAILURE;
   }
 
-  // should ideally be shut down after the pipeline, but until we have footer
-  // and header logging support, we'll need to rely on the legacy macro logging
-  // system for intial and final status updates.
-  CLI::stop_sync();
-  // LOG_STANDARD("➤ build completed");
-
   // shut down required subsystems.
+  CLI::stop_sync();
   Pipeline::stop_sync();
 
   return EXIT_SUCCESS;
