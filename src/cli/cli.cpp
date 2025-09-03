@@ -19,17 +19,7 @@ void CLIEntryHandle::set_highlighted(bool highlighted) {
 }
 
 void CLIEntryHandle::set_status_internal(CLIEntryStatus status) {
-  // if child handle is doing work, parent is also considered to be doing work.
-  if (status == CLIEntryStatus::Running && this->parent) {
-    std::shared_ptr<CLIEntryHandle> parent_ptr = this->parent->lock();
-    if (parent_ptr)
-      parent_ptr->set_status_internal(status);
-    else
-      assert(false && "parent entry node was destroyed while derived "
-                      "implementations were still active");
-  }
   this->status = status;
-
   if (status == CLIEntryStatus::Finished)
     this->time_finished = std::chrono::high_resolution_clock::now();
 }

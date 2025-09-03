@@ -184,7 +184,7 @@ void CLIRenderer::draw(
                  CLIColour::cyan() + std::to_string(CLI::get_tasks_compiled()) +
                  CLIColour::reset() + CLIColour::bold() + " tasks" + " (" +
                  CLIColour::cyan() + std::to_string(CLI::get_tasks_skipped()) +
-                 CLIColour::reset() + CLIColour::bold() + " skipped)\n" +
+                 CLIColour::reset() + CLIColour::bold() + " skipped)" +
                  CLIColour::reset()) +
       "\n"));
 
