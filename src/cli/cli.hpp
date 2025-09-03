@@ -47,7 +47,8 @@ public:
   void set_highlighted(bool);
   CLIEntryStatus get_status() const;
   std::string get_description() const;
-  std::chrono::time_point<std::chrono::high_resolution_clock> get_time_finished() const;
+  std::chrono::time_point<std::chrono::high_resolution_clock>
+  get_time_finished() const;
 };
 
 enum class LogLevel {
@@ -76,8 +77,6 @@ private:
   static std::vector<std::shared_ptr<CLIEntryHandle>> entry_handles;
   static std::optional<std::shared_ptr<CLIEntryHandle>>
       search_handle_recursive(std::string, std::shared_ptr<CLIEntryHandle>);
-  // static void destroy_entry_recursive(std::shared_ptr<CLIEntryHandle>,
-  //                                     std::shared_ptr<CLIEntryHandle>);
 
   static std::thread io_thread;
   static std::mutex io_lock;
@@ -101,7 +100,6 @@ public:
                         CLIEntryStatus);
   static std::shared_ptr<CLIEntryHandle>
       get_entry_from_description(std::string);
-  // static void destroy_entry(std::shared_ptr<CLIEntryHandle>);
 
   static void write_to_log(std::string);
   static void write_verbose(std::string);
