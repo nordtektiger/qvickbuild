@@ -99,7 +99,7 @@ std::string CLIRenderer::wrap_with_padding(size_t padding,
   }
 
   // trim last newline to comply with old behaviour.
-  if (formatted[formatted.size() - 1] == '\n')
+  if (!formatted.empty() && formatted[formatted.size() - 1] == '\n')
     formatted = formatted.substr(0, formatted.size() - 1);
 
   return formatted;
@@ -168,7 +168,7 @@ void CLIRenderer::draw(
   // draw handles.
   for (std::shared_ptr<CLIEntryHandle> const &handle_ptr : entry_handles) {
     text_buffer += CLIRenderer::ensure_clear(
-        Counted::count_str(draw_handle(*handle_ptr) + "\n"));
+        Counted::count_str(CLIRenderer::draw_handle(*handle_ptr) + "\n"));
   }
 
   // draw status.
@@ -180,8 +180,9 @@ void CLIRenderer::draw(
                  CLIColour::cyan() + std::to_string(CLI::get_tasks_compiled()) +
                  CLIColour::reset() + CLIColour::bold() + " tasks" + " (" +
                  CLIColour::cyan() + std::to_string(CLI::get_tasks_skipped()) +
-                 CLIColour::reset() + CLIColour::bold() + " skipped)\n") +
-      CLIColour::reset()));
+                 CLIColour::reset() + CLIColour::bold() + " skipped)\n" +
+                 CLIColour::reset()) +
+      "\n"));
 
   text_buffer += CLIRenderer::show_cursor();
 
