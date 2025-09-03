@@ -8,6 +8,7 @@ class CLIEntryHandle;
 #include "render.hpp"
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -78,10 +79,15 @@ private:
   static std::optional<std::shared_ptr<CLIEntryHandle>>
       search_handle_recursive(std::string, std::shared_ptr<CLIEntryHandle>);
 
+  static std::mutex io_modify_lock;
+
   static std::thread io_thread;
-  static std::mutex io_lock;
+  static std::mutex io_wake_lock;
+  static std::condition_variable io_wake_condition;
+  static std::atomic_bool io_wake_redraw;
   static std::atomic_bool stop;
   static void run();
+  static void wake_for_redraw();
 
   static size_t compute_percentage_done();
   static size_t get_tasks_scheduled();
