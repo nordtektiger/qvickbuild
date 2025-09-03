@@ -133,8 +133,12 @@ std::string CLIRenderer::draw_handle(CLIEntryHandle const &entry_handle) {
   std::sort(
       entry_children.begin(), entry_children.end(),
       [](std::shared_ptr<CLIEntryHandle> a, std::shared_ptr<CLIEntryHandle> b) {
-        return static_cast<int>(a->get_status()) >
-               static_cast<int>(b->get_status());
+        if (a->get_status() == CLIEntryStatus::Finished &&
+            a->get_status() == b->get_status())
+          return a->get_time_finished() < b->get_time_finished();
+        else
+          return static_cast<int>(a->get_status()) >
+                 static_cast<int>(b->get_status());
       });
   for (std::shared_ptr<CLIEntryHandle> const &child_handle : entry_children) {
     out += "\n" + CLIRenderer::wrap_with_padding(

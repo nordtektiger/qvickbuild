@@ -29,6 +29,9 @@ void CLIEntryHandle::set_status_internal(CLIEntryStatus status) {
                       "implementations were still active");
   }
   this->status = status;
+
+  if (status == CLIEntryStatus::Finished)
+    this->time_finished = std::chrono::high_resolution_clock::now();
 }
 
 void CLIEntryHandle::set_status(CLIEntryStatus status) {
@@ -40,6 +43,11 @@ CLIEntryStatus CLIEntryHandle::get_status() const { return this->status; }
 
 std::string CLIEntryHandle::get_description() const {
   return this->description;
+}
+
+std::chrono::time_point<std::chrono::high_resolution_clock>
+CLIEntryHandle::get_time_finished() const {
+  return this->time_finished;
 }
 
 std::vector<LogEntry> CLI::log_buffer = {};

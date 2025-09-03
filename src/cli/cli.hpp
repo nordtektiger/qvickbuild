@@ -33,6 +33,7 @@ private:
   std::optional<std::weak_ptr<CLIEntryHandle>> parent;
   std::vector<std::shared_ptr<CLIEntryHandle>> children;
   CLIEntryStatus status;
+  std::chrono::time_point<std::chrono::high_resolution_clock> time_finished;
   bool highlighted;
   void set_status_internal(CLIEntryStatus);
 
@@ -46,6 +47,7 @@ public:
   void set_highlighted(bool);
   CLIEntryStatus get_status() const;
   std::string get_description() const;
+  std::chrono::time_point<std::chrono::high_resolution_clock> get_time_finished() const;
 };
 
 enum class LogLevel {
