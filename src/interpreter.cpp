@@ -1,20 +1,15 @@
 #include "interpreter.hpp"
 #include "errors.hpp"
-#include "filesystem"
-#include "format.hpp"
+#include "filesystem.hpp"
 #include "literals.hpp"
-#include "oslayer.hpp"
 #include "pipeline.hpp"
+#include "processes.hpp"
 #include "static_verify.hpp"
 #include "tracking.hpp"
 
-#include <algorithm>
-#include <atomic>
 #include <cassert>
-#include <filesystem>
 #include <memory>
 #include <ranges>
-#include <thread>
 
 #define DEPENDS "depends"
 #define DEPENDS_PARALLEL "depends_parallel"
@@ -533,16 +528,14 @@ Interpreter::evaluate_field_optional_strict(std::string identifier,
   return autocast_strict<T>(*value);
 }
 
-using RunTaskType = std::function<void(RunContext)>;
-
 namespace PipelineJobs {
-template <typename F> class BuildJob : public PipelineJob {
+class BuildJob : public PipelineJob {
 private:
-  F function_ptr;
+  std::function<void(RunContext)> function_ptr;
   RunContext run_context;
 
 public:
-  BuildJob(F function_ptr, RunContext run_context)
+  BuildJob(std::function<void(RunContext)> function_ptr, RunContext run_context)
       : function_ptr(function_ptr) {
     this->run_context = run_context;
   }
@@ -563,7 +556,7 @@ Interpreter::compute_latest_dependency_change(IList<IString> dependencies) {
   for (IString dependency : dependencies.contents) {
     std::optional<Task> task = find_task(dependency.to_string());
     std::optional<size_t> modified_i =
-        OSLayer::get_file_timestamp(dependency.to_string());
+        Filesystem::get_file_timestamp(dependency.to_string());
     if (modified_i && latest_modification < modified_i)
       latest_modification = *modified_i;
     if (!task) {
@@ -601,10 +594,9 @@ void Interpreter::solve_dependencies(IList<IString> dependencies,
     if (!task) {
       continue;
     }
-    scheduler.schedule_job(
-        std::make_shared<PipelineJobs::BuildJob<RunTaskType>>(
-            [this](RunContext x) { return this->run_task(x); },
-            RunContext{*task, dependency.to_string(), parent_iteration}));
+    scheduler.schedule_job(std::make_shared<PipelineJobs::BuildJob>(
+        [this](RunContext x) { return this->run_task(x); },
+        RunContext{*task, dependency.to_string(), parent_iteration}));
   }
 
   scheduler.send_and_await();
@@ -640,7 +632,7 @@ void Interpreter::run_task(RunContext run_context) {
     size_t latest_dependency_change =
         compute_latest_dependency_change(*dependencies);
     std::optional<size_t> latest_this_change =
-        OSLayer::get_file_timestamp(task_iteration);
+        Filesystem::get_file_timestamp(task_iteration);
     if (latest_this_change && *latest_this_change >= latest_dependency_change) {
       // todo: do we really know that the dependencies don't need to be rebuilt?
       CLI::increment_skipped_tasks();

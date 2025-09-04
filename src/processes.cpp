@@ -1,19 +1,7 @@
-#include "oslayer.hpp"
+#include "processes.hpp"
 #include "errors.hpp"
 #include "tracking.hpp"
 #include <sys/stat.h>
-
-// this might incorrectly modify struct name.
-#ifdef WIN32
-#define stat _stat
-#endif
-
-// account for darwin naming conventions.
-#ifdef __APPLE__
-#define ST_CTIME st_ctimespec.tv_sec
-#else
-#define ST_CTIME st_ctime
-#endif
 
 PipelineJobs::ExecuteJob::ExecuteJob(
     std::string cmdline, StreamReference reference,
@@ -31,11 +19,4 @@ void PipelineJobs::ExecuteJob::compute() noexcept {
     this->report_error();
     ErrorHandler::soft_report(ENonZeroProcess{cmdline, reference});
   }
-}
-
-std::optional<size_t> OSLayer::get_file_timestamp(std::string path) {
-  struct stat t_stat;
-  if (0 > stat(path.c_str(), &t_stat))
-    return std::nullopt;
-  return t_stat.ST_CTIME;
 }
