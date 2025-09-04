@@ -1,7 +1,6 @@
 #include "cli.hpp"
-#include <algorithm>
+#include "colour.hpp"
 #include <cassert>
-#include <iostream>
 
 CLIEntryHandle::CLIEntryHandle(
     std::string description,
@@ -18,15 +17,13 @@ void CLIEntryHandle::set_highlighted(bool highlighted) {
   this->highlighted = highlighted;
 }
 
-void CLIEntryHandle::set_status_internal(CLIEntryStatus status) {
+void CLIEntryHandle::set_status(CLIEntryStatus status) {
+  std::unique_lock<std::mutex> guard(CLI::io_modify_lock);
   this->status = status;
   if (status == CLIEntryStatus::Finished)
     this->time_finished = std::chrono::high_resolution_clock::now();
-}
-
-void CLIEntryHandle::set_status(CLIEntryStatus status) {
-  std::unique_lock<std::mutex> guard(CLI::io_modify_lock);
-  this->set_status_internal(status);
+  guard.unlock();
+  CLI::legacy_update_status(*this);
 }
 
 CLIEntryStatus CLIEntryHandle::get_status() const { return this->status; }
@@ -51,12 +48,34 @@ std::atomic_bool CLI::stop = false;
 size_t CLI::tasks_skipped = 0;
 CLIOptions CLI::cli_options = CLIOptions();
 
+void CLI::legacy_update_status(CLIEntryHandle const &entry) {
+  if (CLI::cli_options.capabilities.movement)
+    return;
+  switch (entry.get_status()) {
+  case CLIEntryStatus::Scheduled:
+    CLI::write_to_log("… scheduled " + entry.get_description());
+    break;
+  case CLIEntryStatus::Building:
+    CLI::write_to_log("🞂 building " + entry.get_description());
+    break;
+  case CLIEntryStatus::Failed:
+    CLI::write_to_log("⨯ failed " + entry.get_description());
+    break;
+  case CLIEntryStatus::Finished:
+    CLI::write_to_log("✓ finished " + entry.get_description());
+    break;
+  }
+}
+
 std::shared_ptr<CLIEntryHandle> CLI::generate_entry(std::string description,
                                                     CLIEntryStatus status) {
   std::unique_lock<std::mutex> guard(CLI::io_modify_lock);
   std::shared_ptr<CLIEntryHandle> handle_ptr =
       std::make_shared<CLIEntryHandle>(description, std::nullopt, status);
   CLI::entry_handles.push_back(handle_ptr);
+
+  guard.unlock();
+  CLI::legacy_update_status(*handle_ptr);
 
   // request a cli redraw.
   CLI::wake_for_redraw();
@@ -71,6 +90,9 @@ CLI::derive_entry_from(std::shared_ptr<CLIEntryHandle> parent,
   auto handle_ptr =
       std::make_shared<CLIEntryHandle>(description, parent, status);
   parent->children.push_back(handle_ptr);
+
+  guard.unlock();
+  CLI::legacy_update_status(*handle_ptr);
 
   // request a cli redraw.
   CLI::wake_for_redraw();
@@ -108,6 +130,7 @@ CLI::search_handle_recursive(std::string description,
 
 void CLI::initialize(CLIOptions cli_options) {
   CLIColour::set_formatting(cli_options.capabilities.colour);
+  CLIRenderer::set_interactive(cli_options.capabilities.movement);
   CLI::cli_options = cli_options;
   CLI::stop = false;
   CLI::io_thread = std::thread(CLI::run);
@@ -193,7 +216,8 @@ void CLI::run() {
   while (!CLI::stop) {
     // wait until wake, or until the redraw exceeds the timeout.
     std::unique_lock<std::mutex> guard_wake(CLI::io_wake_lock);
-    CLI::io_wake_condition.wait_for(guard_wake, DRAW_TIMEOUT);
+    CLI::io_wake_condition.wait_for(guard_wake, DRAW_TIMEOUT,
+                                    [] { return (bool)CLI::io_wake_redraw; });
     CLI::io_wake_redraw = false;
     guard_wake.unlock();
 

@@ -25,7 +25,7 @@ PipelineJobs::ExecuteJob::ExecuteJob(
 }
 
 void PipelineJobs::ExecuteJob::compute() noexcept {
-  this->entry_handle->set_status(CLIEntryStatus::Running);
+  this->entry_handle->set_status(CLIEntryStatus::Building);
   int code = system(this->cmdline.c_str());
   if (0 != code) {
     this->report_error();

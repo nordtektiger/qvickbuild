@@ -1,6 +1,7 @@
 #include "render.hpp"
+#include "colour.hpp"
+#include <cassert>
 #include <iostream>
-#include <locale>
 #include <ranges>
 
 class Counted {
@@ -28,6 +29,7 @@ std::string Counted::count_str(std::string content) {
 
 char const *CLIRenderer::spinner_buf[6] = {"⠏ ", "⠛ ", "⠹ ", "⠼ ", "⠶ ", "⠧ "};
 size_t CLIRenderer::frame = 0;
+bool CLIRenderer::is_interactive = false;
 
 std::string CLIRenderer::move_up(size_t rows) {
   if (rows == 0)
@@ -111,7 +113,7 @@ std::string CLIRenderer::draw_handle(CLIEntryHandle const &entry_handle) {
   case CLIEntryStatus::Scheduled:
     out += "… ";
     break;
-  case CLIEntryStatus::Running:
+  case CLIEntryStatus::Building:
     out += CLIColour::cyan() +
            CLIRenderer::spinner_buf[CLIRenderer::frame % 6] +
            CLIColour::reset();
@@ -120,7 +122,7 @@ std::string CLIRenderer::draw_handle(CLIEntryHandle const &entry_handle) {
     out += CLIColour::red() + "⨯ " + CLIColour::reset();
     break;
   case CLIEntryStatus::Finished:
-    out += CLIColour::green() + "✔ " + CLIColour::reset();
+    out += CLIColour::green() + "✓ " + CLIColour::reset();
     break;
   }
   if (entry_handle.highlighted)
@@ -157,7 +159,7 @@ std::string CLIRenderer::ensure_clear(std::string content) {
   return out + content[content.size() - 1];
 }
 
-void CLIRenderer::draw(
+void CLIRenderer::draw_interactive(
     std::vector<std::string> logs,
     std::vector<std::shared_ptr<CLIEntryHandle>> entry_handles) {
   // reset drawing position.
@@ -194,4 +196,23 @@ void CLIRenderer::draw(
   std::cout << text_buffer;
   CLIRenderer::flush();
   CLIRenderer::frame++;
+}
+
+void CLIRenderer::draw_legacy(std::vector<std::string> logs) {
+  for (std::string const &log : logs) {
+    std::cout << log << std::endl;
+  }
+}
+
+void CLIRenderer::draw(
+    std::vector<std::string> logs,
+    std::vector<std::shared_ptr<CLIEntryHandle>> entry_handles) {
+  if (CLIRenderer::is_interactive)
+    CLIRenderer::draw_interactive(logs, entry_handles);
+  else
+    CLIRenderer::draw_legacy(logs);
+}
+
+void CLIRenderer::set_interactive(bool is_interactive) {
+  CLIRenderer::is_interactive = is_interactive;
 }

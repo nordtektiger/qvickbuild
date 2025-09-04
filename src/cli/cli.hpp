@@ -3,7 +3,6 @@
 
 class CLIEntryHandle;
 
-#include "colour.hpp"
 #include "environment.hpp"
 #include "render.hpp"
 #include <atomic>
@@ -16,11 +15,11 @@ class CLIEntryHandle;
 #include <thread>
 #include <vector>
 
-#define DRAW_TIMEOUT std::chrono::milliseconds(70)
+#define DRAW_TIMEOUT std::chrono::milliseconds(50)
 
 enum class CLIEntryStatus {
   Scheduled,
-  Running,
+  Building,
   Finished,
   Failed,
 };
@@ -36,7 +35,6 @@ private:
   CLIEntryStatus status;
   std::chrono::time_point<std::chrono::high_resolution_clock> time_finished;
   bool highlighted;
-  void set_status_internal(CLIEntryStatus);
 
 public:
   CLIEntryHandle() = delete;
@@ -95,6 +93,8 @@ private:
   static size_t get_tasks_compiled();
   static size_t get_tasks_compiled(CLIEntryHandle);
   static size_t get_tasks_skipped();
+
+  static void legacy_update_status(CLIEntryHandle const &);
 
   static size_t tasks_skipped;
 
