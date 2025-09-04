@@ -1,6 +1,5 @@
 #include "oslayer.hpp"
 #include "errors.hpp"
-#include "pipeline.hpp"
 #include "tracking.hpp"
 #include <sys/stat.h>
 
@@ -26,6 +25,7 @@ PipelineJobs::ExecuteJob::ExecuteJob(
 
 void PipelineJobs::ExecuteJob::compute() noexcept {
   this->entry_handle->set_status(CLIEntryStatus::Building);
+  CLI::write_verbose(this->cmdline);
   int code = system(this->cmdline.c_str());
   if (0 != code) {
     this->report_error();

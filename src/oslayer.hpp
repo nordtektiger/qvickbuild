@@ -4,12 +4,8 @@
 #include "cli/cli.hpp"
 #include "pipeline.hpp"
 #include "tracking.hpp"
-#include <atomic>
-#include <mutex>
 #include <optional>
 #include <string>
-#include <thread>
-#include <vector>
 
 namespace PipelineJobs {
 class ExecuteJob : public PipelineJob {
