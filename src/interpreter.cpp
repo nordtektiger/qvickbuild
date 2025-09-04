@@ -61,7 +61,7 @@ template <> IList<IBool> autocast_strict(IValue in) {
   ErrorHandler::halt(EVariableTypeMismatch{in, "bool or list<bool>"});
 }
 
-// template <typename T> bool is_immutable(T value) { return value.immutable; }
+template <typename T> bool is_immutable(T value) { return value.immutable; }
 
 template <> IBool autocast_strict(IValue in) {
   if (std::holds_alternative<IBool>(in))
