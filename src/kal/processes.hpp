@@ -8,14 +8,21 @@
 #include <unistd.h>
 #endif
 
-enum class ReadStatus {
+enum class ProcessDispatchStatus {
+  Dispatched, /* process was launched */
+  InternalError, /* qvickbuild cannot proceed */
+};
+
+enum class ProcessReadStatus {
   DataRead, /* successfully read stream */
   ExitSuccess, /* process has exited normally */
   ExitFailure, /* process has failed */
+  InternalError /* qvickbuild cannot proceed */
 };
 
 class SystemProcess {
 private:
+  std::string const cmdline;
 #if defined(kal_linux) || defined(kal_apple)
   pid_t pid;
   int descriptors[2];
@@ -24,9 +31,10 @@ private:
 
 public:
   SystemProcess() = delete;
-  explicit SystemProcess(std::string);
+  explicit SystemProcess(std::string const);
 
-  ReadStatus read_output(std::string &);
+  ProcessDispatchStatus dispatch_process();
+  ProcessReadStatus read_output(std::string &);
 };
 
 #endif

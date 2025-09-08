@@ -17,7 +17,13 @@ void PipelineJobs::ExecuteJob::compute() noexcept {
   CLI::write_verbose(this->cmdline);
 
   SystemProcess process(cmdline);
-  ReadStatus status;
+  if (process.dispatch_process() == ProcessDispatchStatus::InternalError) {
+    ErrorHandler::soft_report(EProcessInternal{cmdline, reference});
+    this->report_error();
+    return;
+  }
+
+  ProcessReadStatus status;
   std::string buffer;
 
   do {
@@ -26,12 +32,15 @@ void PipelineJobs::ExecuteJob::compute() noexcept {
       CLI::write_to_log(buffer);
       buffer.clear();
     }
-  } while (status == ReadStatus::DataRead);
+  } while (status == ProcessReadStatus::DataRead);
   if (!buffer.empty())
     CLI::write_to_log(buffer);
 
-  if (status == ReadStatus::ExitFailure) {
-    this->report_error();
+  if (status == ProcessReadStatus::ExitFailure) {
     ErrorHandler::soft_report(ENonZeroProcess{cmdline, reference});
+    this->report_error();
+  } else if (status == ProcessReadStatus::InternalError) {
+    ErrorHandler::soft_report(EProcessInternal{cmdline, reference});
+    this->report_error();
   }
 }

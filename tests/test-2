@@ -1,6 +1,6 @@
 var1 = "foo_bar_baz";
-test = var1: "*_bar_*" -> "*-quickbuild-*";
-ans = "foo-quickbuild-baz";
+test = var1: "*_bar_*" -> "*-qvickbuild-*";
+ans = "foo-qvickbuild-baz";
 
 "verify-2" {
   # automatically fail build if strings don't match by utilizing shell scripting.

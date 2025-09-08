@@ -10,10 +10,10 @@ install_dir := /usr/bin
 
 # Files to create
 objects := $(sources:src/%.cpp=obj/release/%.o)
-binary := ./bin/quickbuild
+binary := ./bin/qvickbuild
 
 # Main target
-quickbuild: setup $(objects) $(headers)
+qvickbuild: setup $(objects) $(headers)
 	$(CXX) $(CXXFLAGS) -o $(binary) $(objects)
 
 # Object files
@@ -29,7 +29,7 @@ install:
 	install -m 755 $(binary) $(install_dir)
 
 # Run
-run: quickbuild
+run: qvickbuild
 	$(binary)
 
 # Clean

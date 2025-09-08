@@ -22,7 +22,7 @@ Driver::Driver(Setup setup) {
 }
 
 Setup Driver::default_setup() {
-  return Setup{std::nullopt, InputMethod::ConfigFile, "./quickbuild",
+  return Setup{std::nullopt, InputMethod::ConfigFile, "./qvickbuild",
                LogLevel::Standard, false};
 }
 

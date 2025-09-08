@@ -1,51 +1,51 @@
-# Quickbuild
+# Qvickbuild
 > [!IMPORTANT]
-> Quickbuild is currently in early beta and is undergoing major changes. Expect frequent crashes and faulty behaviour. Please see the the issue tracker and version milestones for more information.
+> Qvickbuild is currently in early beta and is undergoing major changes. Expect frequent crashes and faulty behaviour. Please see the the issue tracker and version milestones for more information.
 
 ## "What is this?"
 
-Tired of looking up what `$<` and `$@` does? Say hello to `[depends]` and `[whatever-you-fancy]`. Your build system shouldn't get in the way of your next big idea. Quickbuild is an intuitive way of writing simple build scripts for your projects without having to worry about googling the Make syntax anymore.
+Tired of looking up what `$<` and `$@` does? Say hello to `[depends]` and `[whatever-you-fancy]`. Your build system shouldn't get in the way of your next big idea. Qvickbuild is an intuitive way of writing simple build scripts for your projects without having to worry about googling the Make syntax anymore.
 
 ## Features
 - 🌱 Intuitive & pain-free setup
 - ⚙️ Make-style configuration
 - 🪶 Lightweight & performant
 
-Quickbuild trades a slightly more verbose configuration with intuitive and simpler syntax that takes the pain out of writing makefiles. This makes it suitable for small to medium sized projects and for those who are starting out with low level development. However, this is *not* a replacement for Make - Quickbuild does not have, and will never achieve, feature parity with other build systems such as Make or CMake.
+Qvickbuild trades a slightly more verbose configuration with intuitive and simpler syntax that takes the pain out of writing makefiles. This makes it suitable for small to medium sized projects and for those who are starting out with low level development. However, this is *not* a replacement for Make - Qvickbuild does not have, and will never achieve, feature parity with other build systems such as Make or CMake.
 
-Quickbuild is fast enough that you never have to worry about performance. It is written in C++, and performance analysis is regularly applied to spot any bottlenecks.
+Qvickbuild is fast enough that you never have to worry about performance. It is written in C++, and performance analysis is regularly applied to spot any bottlenecks.
 
 ## Installation
-Quickbuild is available from the AUR as `quickbuild-git`. If you aren't running Arch, you can also build it from source.
+Qvickbuild is available from the AUR as `qvickbuild`. If you aren't running Arch, you can also build it from source.
 
 ### Building from source
 
 > Dependencies:
-> - make _or_ quickbuild
+> - make _or_ qvickbuild
 > - clang with stdlib >= c++20
 
 Normal installation using Make:
 ```
-$ git clone https://gitlab.com/nordtektiger/quickbuild
-$ cd quickbuild
+$ git clone https://gitlab.com/nordtektiger/qvickbuild
+$ cd qvickbuild
 $ make
 # make install
 ```
 
-Alternatively, you can use a previous version of Quickbuild to build a newer one from source:
+Alternatively, you can use a previous version of Qvickbuild to build a newer one from source:
 ```
-$ git clone https://gitlab.com/nordtektiger/quickbuild
-$ cd quickbuild
-$ quickbuild
-# quickbuild install
+$ git clone https://gitlab.com/nordtektiger/qvickbuild
+$ cd qvickbuild
+$ qvickbuild
+# qvickbuild install
 ```
 
 ## Syntax
-All configuration is to be stored at project root in a file named "quickbuild". The structure of a Quickbuild config is very similar to that of a Makefile, but with slightly more verbose syntax.
+All configuration is to be stored at project root in a file named "qvickbuild". The structure of a Qvickbuild config is very similar to that of a Makefile, but with slightly more verbose syntax.
 
 
 ### Variables
-Quickbuild implements three fundamental types: strings, booleans, and lists. Variable types are automatically inferred, and variables are lazily evaluated, cached, and declared using the following syntax:
+Qvickbuild implements three fundamental types: strings, booleans, and lists. Variable types are automatically inferred, and variables are lazily evaluated, cached, and declared using the following syntax:
 ```
 # this is a comment!
 my_string = "foo-bar";
@@ -78,19 +78,19 @@ foo = "World";
 bar = "Hello, [foo]!";      # "Hello, World!"
 ```
 
-Quickbuild supports most C-style escape sequences. Thus, `\n` is a valid newline, `\r` is a valid carriage return, `\"` is a " character, etc. Note that it is also possible to escape brackets using `\[` and `\]` if you don't want them to be parsed as an escaped expression during string interpolation.
+Qvickbuild supports most C-style escape sequences. Thus, `\n` is a valid newline, `\r` is a valid carriage return, `\"` is a " character, etc. Note that it is also possible to escape brackets using `\[` and `\]` if you don't want them to be parsed as an escaped expression during string interpolation.
 
 ### Tasks 
 Every task has to have a name and may optionally contain any number of additional fields field. Tasks are equivalent to Make targets, and can be declared as follows.
 ```
-# the topmost task will always execute when quickbuild is run with no arguments
+# the topmost task will always execute when qvickbuild is run with no arguments
 "my_project" {
     run = "gcc foo.c";
     my_field = false;
     foo = "elem1", "elem2";
 }
 ```
-When Quickbuild evaluates a task, it will first look for a field called `depends`. For every element in this list (or string), it will attempt to either evaluate the task it's referring to or assert that the file required is present. The following task will assert that "foo.c" and "bar.c" are both present. Furhermore, this dependency list is what allows Quickbuild to determine whether a full recompilation is necessary or not. If parallelization is necessary, you should set the `depends_parallel` field to true in your desired task.
+When Qvickbuild evaluates a task, it will first look for a field called `depends`. For every element in this list (or string), it will attempt to either evaluate the task it's referring to or assert that the file required is present. The following task will assert that "foo.c" and "bar.c" are both present. Furhermore, this dependency list is what allows Qvickbuild to determine whether a full recompilation is necessary or not. If parallelization is necessary, you should set the `depends_parallel` field to true in your desired task.
 ```
 # this will only execute if the dependencies have changed
 "another_project" {
@@ -100,7 +100,7 @@ When Quickbuild evaluates a task, it will first look for a field called `depends
 }
 ```
 
-After all dependencies have been evaluated or found, Quickbuild looks for a field called `run`. This can either be a single string or a list of strings, which will be executed sequentially by your shell. If you don't want a task to execute a command, you can the `run` field blank. If you want the commands to execute in parallel, you can set the `run_parallel` field to true, similarly to how you would declare the parallelization of your dependencies.
+After all dependencies have been evaluated or found, Qvickbuild looks for a field called `run`. This can either be a single string or a list of strings, which will be executed sequentially by your shell. If you don't want a task to execute a command, you can the `run` field blank. If you want the commands to execute in parallel, you can set the `run_parallel` field to true, similarly to how you would declare the parallelization of your dependencies.
 ```
 "a_phony_task" {
     depends = some_other_stuff;
@@ -149,7 +149,7 @@ my_files as current_source_file {
 ```
 
 ### Examples
-All of these features are usually combined to create more powerful build scripts. There will eventually be some examples in the examples/ folder, but for now, you can check out the current Quickbuild config in this project or in some of the other projects currently powered by Quickbuild. Or, you can check out the comprehensive reference config that was originally used to boostrap Quickbuild:
+All of these features are usually combined to create more powerful build scripts. There will eventually be some examples in the examples/ folder, but for now, you can check out the current Qvickbuild config in this project or in some of the other projects currently powered by Qvickbuild. Or, you can check out the comprehensive reference config that was originally used to boostrap Qvickbuild:
 ```
 # general compiler arguments
 compiler = "clang++";
@@ -161,10 +161,10 @@ headers = "./src/*.hpp";
 
 # files to create
 objects = sources: "./src/*.cpp" -> "./obj/*.o";
-binary = "./bin/quickbuild";
+binary = "./bin/qvickbuild";
 
 # main task
-"quickbuild" {
+"qvickbuild" {
   depends = objects, headers;
   run = "[compiler] [flags] [objects] -o [binary]";
 }
@@ -177,7 +177,7 @@ objects as obj {
 
 # run
 "run" {
-  depends = "quickbuild";
+  depends = "qvickbuild";
   run = "[binary]";
 }
 
@@ -189,7 +189,7 @@ objects as obj {
 ```
 
 ## Contributors
-The entirety of the Quickbuild language specification, compiler, interpreter, as well as the core systems are written and maintained by [@nordtektiger](https://gitlab.com/nordtektiger).
+The entirety of the Qvickbuild language specification, compiler, interpreter, as well as the core systems are written and maintained by [@nordtektiger](https://gitlab.com/nordtektiger).
 
 The language server [quickbuildls](https://github.com/jmattaa/quickbuildls) is written and maintained by [@jmattaa](https://github.com/jmattaa).
 

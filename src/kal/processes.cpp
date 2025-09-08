@@ -5,19 +5,22 @@
 // todo: win32: subprocess management
 #if defined(kal_linux) || defined(kal_apple)
 #include <cassert>
+#include <cstring>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
-#include <cstring>
 
-SystemProcess::SystemProcess(std::string cmdline) {
+SystemProcess::SystemProcess(std::string const cmdline) : cmdline(cmdline) {}
+
+ProcessDispatchStatus SystemProcess::dispatch_process() {
   // setup.
   if (0 > pipe(this->descriptors))
-    assert(false && "failed to create pipe: todo: proper error handling");
+    return ProcessDispatchStatus::InternalError;
 
   // fork.
   this->pid = fork();
-  assert(0 <= this->pid && "failed to fork: todo: proper error handling");
+  if (0 > this->pid)
+    return ProcessDispatchStatus::InternalError;
 
   if (0 == pid) {
     // subprocess.
@@ -27,32 +30,37 @@ SystemProcess::SystemProcess(std::string cmdline) {
 
     std::vector<char const *> args = {"/bin/sh", "-c", cmdline.c_str(), NULL};
     execv("/bin/sh", const_cast<char *const *>(args.data()));
-    assert(false && "failed to execv: todo: proper error handling");
+    exit(-1); // we are in a duplicate interpreter instance, and so we need to
+              // completely abandon ship here. if we return, we'd get two
+              // qvickbuild instances attempting to evaluate the same
+              // configuration at the same time.
 
   } else {
     // interpreter.
     close(this->descriptors[1]);
     this->stream = fdopen(this->descriptors[0], "r");
+    return ProcessDispatchStatus::Dispatched;
   }
+  assert(false && "invalid fork return code");
 }
 
-ReadStatus SystemProcess::read_output(std::string &out) {
+ProcessReadStatus SystemProcess::read_output(std::string &out) {
   char buffer[BUFSIZ] = {0};
-  if (fgets(buffer, BUFSIZ, this->stream) != NULL &&
-      std::strlen(buffer) != 0)
+  if (fgets(buffer, BUFSIZ, this->stream) != NULL && std::strlen(buffer) != 0)
     out += std::string(buffer);
 
   int wstatus;
   pid_t status = waitpid(this->pid, &wstatus, WNOHANG);
-  assert(0 <= status && "failed to waitpid: todo: proper error handling");
+  if (0 > status)
+    return ProcessReadStatus::InternalError;
 
   int unused;
   if (!status || !WIFEXITED(wstatus))
-    return ReadStatus::DataRead;
+    return ProcessReadStatus::DataRead;
 
   if (WIFEXITED(wstatus) && 0 != WEXITSTATUS(wstatus))
-    return ReadStatus::ExitFailure;
+    return ProcessReadStatus::ExitFailure;
   else
-    return ReadStatus::ExitSuccess;
+    return ProcessReadStatus::ExitSuccess;
 }
 #endif

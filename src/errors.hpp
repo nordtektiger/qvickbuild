@@ -108,6 +108,18 @@ public:
   ENonZeroProcess(std::string, StreamReference);
 };
 
+class EProcessInternal : public BuildError {
+private:
+  std::string cmdline;
+  StreamReference reference;
+
+public:
+  std::string render_error(std::vector<unsigned char> config) override;
+  char const *get_exception_msg() override;
+  EProcessInternal() = delete;
+  EProcessInternal(std::string, StreamReference);
+};
+
 class ETaskNotFound : public BuildError {
 private:
   std::string task_name;

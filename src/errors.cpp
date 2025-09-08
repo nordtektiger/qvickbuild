@@ -368,6 +368,26 @@ std::string ENonZeroProcess::render_error(std::vector<unsigned char> config) {
 
 char const *ENonZeroProcess::get_exception_msg() { return "Command failed"; }
 
+EProcessInternal::EProcessInternal(std::string cmdline,
+                                   StreamReference reference) {
+  this->cmdline = cmdline;
+  this->reference = reference;
+}
+
+std::string EProcessInternal::render_error(std::vector<unsigned char> config) {
+  ReferenceView ref_view = ErrorRenderer::get_reference_view(config, reference);
+  std::string rendered_view =
+      ErrorRenderer::get_rendered_view(ref_view, "command defined here");
+  return std::format("{}{}error:{}{} qvickbuild suffered an internal failure "
+                     "while attempting to execute command '{}'. please file a "
+                     "bug report.{}\n{}",
+                     RED, BOLD, RESET, BOLD, cmdline, RESET, rendered_view);
+}
+
+char const *EProcessInternal::get_exception_msg() {
+  return "Internal process module failed";
+}
+
 ETaskNotFound::ETaskNotFound(std::string task_name) {
   this->task_name = task_name;
 }
@@ -946,6 +966,7 @@ template void ErrorHandler::halt<ENoTasks>(ENoTasks);
 template void ErrorHandler::halt<ETaskNotFound>(ETaskNotFound);
 template void ErrorHandler::halt<EAmbiguousTask>(EAmbiguousTask);
 template void ErrorHandler::halt<ENonZeroProcess>(ENonZeroProcess);
+template void ErrorHandler::halt<EProcessInternal>(EProcessInternal);
 template void ErrorHandler::halt<EInvalidInputFile>(EInvalidInputFile);
 template void ErrorHandler::halt<EInvalidEscapeCode>(EInvalidEscapeCode);
 template void ErrorHandler::halt<EAdjacentWildcards>(EAdjacentWildcards);
@@ -988,6 +1009,7 @@ template void ErrorHandler::soft_report<ENoTasks>(ENoTasks);
 template void ErrorHandler::soft_report<ETaskNotFound>(ETaskNotFound);
 template void ErrorHandler::soft_report<EAmbiguousTask>(EAmbiguousTask);
 template void ErrorHandler::soft_report<ENonZeroProcess>(ENonZeroProcess);
+template void ErrorHandler::soft_report<EProcessInternal>(EProcessInternal);
 template void ErrorHandler::soft_report<EInvalidInputFile>(EInvalidInputFile);
 template void ErrorHandler::soft_report<EInvalidEscapeCode>(EInvalidEscapeCode);
 template void ErrorHandler::soft_report<EAdjacentWildcards>(EAdjacentWildcards);

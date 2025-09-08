@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
     } else if (*arg_it == "--dry-run") {
       setup.dry_run = true;
     } else if (*arg_it == "--help") {
-      std::cout << "Usage: quickbuild [arguments] [task]\n"
+      std::cout << "Usage: qvickbuild [arguments] [task]\n"
                    "  --stdin: reads config from stdin\n"
                    "  --configfile [file]: reads config from specified file\n"
                    "  --log-quiet: sets logging level to quiet\n"
@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
   Driver driver = Driver(setup);
   return driver.run();
   // } catch (const std::exception &e) {
-  //   std::cerr << "! <Fatal crash>\n! The Quickbuild driver threw an unhandled
+  //   std::cerr << "! <Fatal crash>\n! The Qvickbuild driver threw an unhandled
   //   "
   //                "exception. This is an internal bug and should be reported."
   //             << std::endl;
