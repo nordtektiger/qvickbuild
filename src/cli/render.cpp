@@ -168,7 +168,7 @@ void CLIRenderer::draw_interactive(
 
   // dump cached log content.
   for (std::string const &log : logs) {
-    text_buffer += CLIRenderer::ensure_clear(log + "\n");
+    text_buffer += CLIRenderer::ensure_clear(log);
   }
 
   // draw handles.
@@ -200,8 +200,9 @@ void CLIRenderer::draw_interactive(
 
 void CLIRenderer::draw_legacy(std::vector<std::string> logs) {
   for (std::string const &log : logs) {
-    std::cout << log << std::endl;
+    std::cout << log;
   }
+  CLIRenderer::flush();
 }
 
 void CLIRenderer::draw(

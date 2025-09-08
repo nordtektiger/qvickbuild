@@ -2,6 +2,8 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+#include "platform.hpp"
+
 // todo: win32: terminal detection
 #if defined(kal_linux) || defined(kal_apple)
 size_t KALTerminal::detect_width() {

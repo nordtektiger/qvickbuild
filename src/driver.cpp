@@ -5,6 +5,7 @@
 #include "format.hpp"
 #include "interpreter.hpp"
 #include "kal/platform.hpp"
+#include "kal/processes.hpp"
 #include "lexer.hpp"
 #include "parser.hpp"
 #include "pipeline.hpp"
@@ -12,7 +13,6 @@
 #include <cassert>
 #include <format>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <thread>

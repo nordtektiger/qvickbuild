@@ -53,16 +53,16 @@ void CLI::legacy_update_status(CLIEntryHandle const &entry) {
     return;
   switch (entry.get_status()) {
   case CLIEntryStatus::Scheduled:
-    CLI::write_to_log("… scheduled " + entry.get_description());
+    CLI::write_to_log("… scheduled " + entry.get_description() + "\n");
     break;
   case CLIEntryStatus::Building:
-    CLI::write_to_log("🞂 building " + entry.get_description());
+    CLI::write_to_log("↻ building " + entry.get_description() + "\n");
     break;
   case CLIEntryStatus::Failed:
-    CLI::write_to_log("⨯ failed " + entry.get_description());
+    CLI::write_to_log("⨯ failed " + entry.get_description() + "\n");
     break;
   case CLIEntryStatus::Finished:
-    CLI::write_to_log("✓ finished " + entry.get_description());
+    CLI::write_to_log("✓ finished " + entry.get_description() + "\n");
     break;
   }
 }
