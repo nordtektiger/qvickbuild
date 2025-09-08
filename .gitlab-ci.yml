@@ -10,13 +10,13 @@ build:
     - make -j $(nproc)
   artifacts:
     paths:
-      - bin/quickbuild
+      - bin/qvickbuild
 
 test:
   stage: test
   image: archlinux:base-devel
   script:
-    - ./bin/quickbuild test
-    - ./bin/quickbuild
+    - ./bin/qvickbuild test
+    - ./bin/qvickbuild
   dependencies:
     - build
