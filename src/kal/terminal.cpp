@@ -8,6 +8,7 @@
 #if defined(kal_linux) || defined(kal_apple)
 size_t KALTerminal::detect_width() {
   struct winsize win_size;
+  // todo: error handling.
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &win_size);
   if (win_size.ws_col == 0)
     return 9999;

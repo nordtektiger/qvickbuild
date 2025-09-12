@@ -1,21 +1,33 @@
 #include "processes.hpp"
 #include "platform.hpp"
-#include <iostream>
 
 // todo: win32: subprocess management
 #if defined(kal_linux) || defined(kal_apple)
+#include "termios.h"
+#include "utmp.h"
 #include <cassert>
 #include <cstring>
+#include <pty.h>
+#include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
 
+#include "../cli/cli.hpp"
+
 SystemProcess::SystemProcess(std::string const cmdline) : cmdline(cmdline) {}
 
 ProcessDispatchStatus SystemProcess::dispatch_process() {
-  // setup.
-  if (0 > pipe(this->descriptors))
-    return ProcessDispatchStatus::InternalError;
+  // terminal spoofing.
+  struct winsize win_size;
+  struct termios termios_p;
+  // todo: error handling.
+  ioctl(STDOUT_FILENO, TIOCGWINSZ, &win_size);
+  tcgetattr(STDOUT_FILENO, &termios_p);
+
+  int fd_master, fd_slave;
+  openpty(&fd_master, &fd_slave, NULL, &termios_p, &win_size);
+  this->fd_master = fd_master;
 
   // fork.
   this->pid = fork();
@@ -24,9 +36,8 @@ ProcessDispatchStatus SystemProcess::dispatch_process() {
 
   if (0 == pid) {
     // subprocess.
-    close(this->descriptors[0]);
-    dup2(this->descriptors[1], STDOUT_FILENO);
-    dup2(this->descriptors[1], STDERR_FILENO);
+    login_tty(fd_slave);
+    close(fd_master);
 
     std::vector<char const *> args = {"/bin/sh", "-c", cmdline.c_str(), NULL};
     execv("/bin/sh", const_cast<char *const *>(args.data()));
@@ -37,22 +48,21 @@ ProcessDispatchStatus SystemProcess::dispatch_process() {
 
   } else {
     // interpreter.
-    close(this->descriptors[1]);
-    this->stream = fdopen(this->descriptors[0], "r");
+    close(fd_slave);
     return ProcessDispatchStatus::Dispatched;
   }
   assert(false && "invalid fork return code");
 }
 
 ProcessReadStatus SystemProcess::read_output(std::string &out) {
-  char buffer[BUFSIZ] = {0};
-  if (fgets(buffer, BUFSIZ, this->stream) != NULL && std::strlen(buffer) != 0)
-    out += std::string(buffer);
-
   int wstatus;
   pid_t status = waitpid(this->pid, &wstatus, WNOHANG);
   if (0 > status)
     return ProcessReadStatus::InternalError;
+
+  char buffer[BUFSIZ] = {0};
+  if (0 < read(this->fd_master, buffer, sizeof(buffer) / sizeof(buffer[0])))
+    out += std::string(buffer);
 
   int unused;
   if (!status || !WIFEXITED(wstatus))
