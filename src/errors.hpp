@@ -262,7 +262,6 @@ public:
   ENoTaskClose(StreamReference);
 };
 
-// todo: revisit this.
 class EInvalidListEnd : public BuildError {
 private:
   StreamReference reference;

@@ -701,7 +701,6 @@ void Interpreter::run_task(RunContext run_context) {
 }
 
 void Interpreter::build() {
-
   // precompute and cache task identifiers
   for (Task const &task : this->state->ast->tasks) {
     if (!this->state->topmost_task)
@@ -747,10 +746,6 @@ void Interpreter::build() {
             .to_string();
   }
 
-  // auto entry_handle =
-  //     CLI::generate_entry_handle(task_iteration, CLIEntryStatus::Scheduled);
-  // LOG_STANDARD("⧗ building " << CYAN << task_iteration << RESET);
-  // todo: error checking is also required here in case task doesn't exist.
   FrameGuard frame{EntryBuildFrame(task_iteration, task->reference)};
   run_task(RunContext{*task, task_iteration, std::nullopt});
 }

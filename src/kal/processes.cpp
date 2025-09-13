@@ -13,20 +13,23 @@
 #include <unistd.h>
 #include <vector>
 
-#include "../cli/cli.hpp"
-
 SystemProcess::SystemProcess(std::string const cmdline) : cmdline(cmdline) {}
 
 ProcessDispatchStatus SystemProcess::dispatch_process() {
-  // terminal spoofing.
+  // clone terminal details - this won't be exactly accurate (number of rows and
+  // y height will be less due to qvickbuild output) but this is most likely
+  // good enough.
   struct winsize win_size;
   struct termios termios_p;
-  // todo: error handling.
-  ioctl(STDOUT_FILENO, TIOCGWINSZ, &win_size);
-  tcgetattr(STDOUT_FILENO, &termios_p);
+  if (0 > ioctl(STDOUT_FILENO, TIOCGWINSZ, &win_size))
+    return ProcessDispatchStatus::InternalError;
+  if (0 > tcgetattr(STDOUT_FILENO, &termios_p))
+    return ProcessDispatchStatus::InternalError;
 
   int fd_master, fd_slave;
-  openpty(&fd_master, &fd_slave, NULL, &termios_p, &win_size);
+  if (0 > openpty(&fd_master, &fd_slave, NULL, &termios_p, &win_size))
+    return ProcessDispatchStatus::InternalError;
+
   this->fd_master = fd_master;
 
   // fork.
@@ -64,7 +67,6 @@ ProcessReadStatus SystemProcess::read_output(std::string &out) {
   if (0 < read(this->fd_master, buffer, sizeof(buffer) / sizeof(buffer[0])))
     out += std::string(buffer);
 
-  int unused;
   if (!status || !WIFEXITED(wstatus))
     return ProcessReadStatus::DataRead;
 
