@@ -20,13 +20,20 @@ enum class ProcessReadStatus {
   InternalError /* qvickbuild cannot proceed */
 };
 
-class SystemProcess {
+namespace LaunchType {
+struct PTY {};  /* pseudotermianl */
+struct Exec {}; /* fork and exec */
+} // namespace LaunchType
+
+template <typename T> class SystemProcess {
 private:
+  T launch_type;
   std::string const cmdline;
+
 #if defined(kal_linux) || defined(kal_apple)
   pid_t pid;
-  int fd_master;
-  FILE *stream;
+  int fd_read;  /* PTY */
+  FILE *stream; /* Exec */
 #endif
 
 public:

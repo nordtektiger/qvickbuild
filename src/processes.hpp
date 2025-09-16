@@ -12,6 +12,7 @@ private:
   std::string cmdline;
   StreamReference reference;
   std::shared_ptr<CLIEntryHandle> entry_handle;
+  void compute_fallback() noexcept;
 
 public:
   ExecuteJob() = delete;
