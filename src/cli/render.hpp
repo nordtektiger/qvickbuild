@@ -29,12 +29,12 @@ private:
   static std::string show_cursor();
   static void flush();
 
-  static void draw_interactive(std::vector<std::string>,
+  static void draw_interactive(std::vector<std::string>, std::vector<std::string>,
                                std::vector<std::shared_ptr<CLIEntryHandle>>);
-  static void draw_legacy(std::vector<std::string>);
+  static void draw_legacy(std::vector<std::string>, std::vector<std::string>);
 public:
   static void set_interactive(bool);
-  static void draw(std::vector<std::string>,
+  static void draw(std::vector<std::string>, std::vector<std::string>,
                    std::vector<std::shared_ptr<CLIEntryHandle>>);
 };
 

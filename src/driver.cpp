@@ -1,11 +1,10 @@
 #include "driver.hpp"
 #include "cli/cli.hpp"
+#include "cli/colour.hpp"
 #include "cli/environment.hpp"
 #include "errors.hpp"
-#include "format.hpp"
 #include "interpreter.hpp"
 #include "kal/platform.hpp"
-#include "kal/processes.hpp"
 #include "lexer.hpp"
 #include "parser.hpp"
 #include "pipeline.hpp"
@@ -56,20 +55,24 @@ void Driver::unwind_errors(std::vector<unsigned char> config) {
   for (auto [thread_hash, build_error] : ErrorHandler::get_errors()) {
     // display error.
     std::string rendered_error = ErrorRenderer::prefix_rendered_view(
-        build_error->render_error(config), std::format("{}│{} ", RED, RESET));
+        build_error->render_error(config),
+        std::format("{}│{} ", CLIColour::red(), CLIColour::reset()));
     std::string thread_prefix =
         verbose_threads
-            ? std::format("{}{}«thread {:x}»{} ", RED, BOLD, thread_hash, RESET)
+            ? std::format("{}{}«thread {:x}»{} ", CLIColour::red(),
+                          CLIColour::bold(), thread_hash, CLIColour::reset())
             : "";
-    LOG_STANDARD(std::format("{}{}", thread_prefix, rendered_error));
+    CLI::write_to_suffix(std::format("{}{}", thread_prefix, rendered_error));
     if (!frames[thread_hash].empty())
-      LOG_STANDARD(RED << "│" << RESET);
+      CLI::write_to_suffix(CLIColour::red() + "│" + CLIColour::reset() + "");
     // display context stack.
     for (std::shared_ptr<Frame> const &frame : frames[thread_hash]) {
-      LOG_STANDARD(std::format("{}│{}  {}note:{} while {}", RED, RESET, GREY,
-                               RESET, frame->render_frame(config)));
+      CLI::write_to_suffix(std::format(
+          "{}│{}  {}note:{} while {}", CLIColour::red(), CLIColour::reset(),
+          CLIColour::grey(), CLIColour::reset(), frame->render_frame(config)));
     }
-    LOG_STANDARD(std::format("{}╰ end.{}", RED, RESET));
+    CLI::write_to_suffix(
+        std::format("{}╰ end.{}", CLIColour::red(), CLIColour::reset()));
   }
 }
 
@@ -88,8 +91,9 @@ std::string get_version_string() {
 }
 
 int Driver::run() {
-  // LOG_STANDARD(BOLD << "warning: you are running qvickbuild beta "
-  //                   << get_version_string() << RESET);
+  // LOG_STANDARD(CLIColour::bold() << "warning: you are running qvickbuild beta
+  // "
+  //                   << get_version_string() << CLIColour::reset());
 
   // initialize required subsystems.
   CLICapabilities capabilities = CLIEnvironment::detect_cli_capabilities();
@@ -120,11 +124,11 @@ int Driver::run() {
     interpreter.build();
 
   } catch (BuildException &_) {
+    unwind_errors(config);
+    CLI::write_to_suffix("");
+
     Pipeline::stop_sync();
     CLI::stop_sync();
-    unwind_errors(config);
-    LOG_STANDARD("");
-    LOG_STANDARD("➤ build " << RED << "failed" << RESET);
     return EXIT_FAILURE;
   }
 

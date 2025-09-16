@@ -38,6 +38,7 @@ CLIEntryHandle::get_time_finished() const {
 }
 
 std::vector<LogEntry> CLI::log_buffer = {};
+std::vector<std::string> CLI::suffix_buffer = {};
 std::vector<std::shared_ptr<CLIEntryHandle>> CLI::entry_handles = {};
 std::thread CLI::io_thread = std::thread();
 std::mutex CLI::io_modify_lock = std::mutex();
@@ -148,6 +149,10 @@ void CLI::stop_sync() {
 
 void CLI::write_to_log(std::string content) { CLI::write_quiet(content); }
 
+void CLI::write_to_suffix(std::string content) {
+  CLI::suffix_buffer.push_back(content);
+}
+
 void CLI::write_quiet(std::string content) {
   // request a cli redraw.
   CLI::wake_for_redraw();
@@ -230,7 +235,7 @@ void CLI::run() {
     CLI::log_buffer.clear();
 
     // render frame.
-    CLIRenderer::draw(logs, CLI::entry_handles);
+    CLIRenderer::draw(logs, CLI::suffix_buffer, CLI::entry_handles);
   }
 }
 

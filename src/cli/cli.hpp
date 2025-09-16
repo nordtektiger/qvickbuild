@@ -73,6 +73,7 @@ class CLI {
 private:
   static CLIOptions cli_options;
   static std::vector<LogEntry> log_buffer;
+  static std::vector<std::string> suffix_buffer;
   static std::vector<std::shared_ptr<CLIEntryHandle>> entry_handles;
   static std::optional<std::shared_ptr<CLIEntryHandle>>
       search_handle_recursive(std::string, std::shared_ptr<CLIEntryHandle>);
@@ -111,6 +112,8 @@ public:
   static void write_verbose(std::string);
   static void write_standard(std::string);
   static void write_quiet(std::string);
+
+  static void write_to_suffix(std::string);
 
   static void increment_skipped_tasks();
 

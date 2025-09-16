@@ -160,11 +160,11 @@ std::string CLIRenderer::ensure_clear(std::string content) {
 }
 
 void CLIRenderer::draw_interactive(
-    std::vector<std::string> logs,
+    std::vector<std::string> logs, std::vector<std::string> suffix,
     std::vector<std::shared_ptr<CLIEntryHandle>> entry_handles) {
   // reset drawing position.
   std::string text_buffer = CLIRenderer::hide_cursor();
-  text_buffer += CLIRenderer::move_up(Counted::reset());
+  text_buffer += CLIRenderer::move_up(Counted::reset()) + "\r";
 
   // dump cached log content.
   for (std::string const &log : logs) {
@@ -190,6 +190,11 @@ void CLIRenderer::draw_interactive(
                  CLIColour::reset()) +
       "\n"));
 
+  // draw suffix.
+  for (std::string const &log : suffix)
+    text_buffer += CLIRenderer::ensure_clear(
+        Counted::count_str(CLIRenderer::wrap_with_padding(0, log) + "\n"));
+
   text_buffer += CLIRenderer::show_cursor();
 
   // flush to terminal.
@@ -198,20 +203,24 @@ void CLIRenderer::draw_interactive(
   CLIRenderer::frame++;
 }
 
-void CLIRenderer::draw_legacy(std::vector<std::string> logs) {
+void CLIRenderer::draw_legacy(std::vector<std::string> logs,
+                              std::vector<std::string> suffix) {
   for (std::string const &log : logs) {
+    std::cout << log;
+  }
+  for (std::string const &log : suffix) {
     std::cout << log;
   }
   CLIRenderer::flush();
 }
 
 void CLIRenderer::draw(
-    std::vector<std::string> logs,
+    std::vector<std::string> logs, std::vector<std::string> suffix,
     std::vector<std::shared_ptr<CLIEntryHandle>> entry_handles) {
   if (CLIRenderer::is_interactive)
-    CLIRenderer::draw_interactive(logs, entry_handles);
+    CLIRenderer::draw_interactive(logs, suffix, entry_handles);
   else
-    CLIRenderer::draw_legacy(logs);
+    CLIRenderer::draw_legacy(logs, suffix);
 }
 
 void CLIRenderer::set_interactive(bool is_interactive) {
