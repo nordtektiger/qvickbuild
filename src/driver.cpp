@@ -127,7 +127,6 @@ int Driver::run() {
 
   } catch (BuildException &_) {
     unwind_errors(config);
-    CLI::write_to_suffix("");
 
     Pipeline::stop_sync();
     CLI::stop_sync();
