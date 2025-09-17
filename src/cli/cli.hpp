@@ -117,6 +117,7 @@ public:
 
   static void increment_skipped_tasks();
 
+  static bool is_interactive();
   static void initialize(CLIOptions);
   static void stop_sync();
 };

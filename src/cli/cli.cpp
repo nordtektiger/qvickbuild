@@ -129,6 +129,10 @@ CLI::search_handle_recursive(std::string description,
   return std::nullopt;
 }
 
+bool CLI::is_interactive() {
+  return CLI::cli_options.capabilities.movement;
+}
+
 void CLI::initialize(CLIOptions cli_options) {
   CLIColour::set_formatting(cli_options.capabilities.colour);
   CLIRenderer::set_interactive(cli_options.capabilities.movement);

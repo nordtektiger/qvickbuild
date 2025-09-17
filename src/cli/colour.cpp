@@ -15,6 +15,10 @@ std::string CLIColour::red() {
   return CLIColour::use_formatting ? "\033[91m" : "";
 }
 
+std::string CLIColour::yellow() {
+  return CLIColour::use_formatting ? "\033[33m" : "";
+}
+
 std::string CLIColour::cyan() {
   return CLIColour::use_formatting ? "\033[36m" : "";
 }

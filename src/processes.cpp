@@ -1,7 +1,9 @@
 #include "processes.hpp"
+#include "cli/colour.hpp"
 #include "errors.hpp"
 #include "kal/processes.hpp"
 #include "tracking.hpp"
+#include <format>
 #include <sys/stat.h>
 
 PipelineJobs::ExecuteJob::ExecuteJob(
@@ -49,6 +51,10 @@ void PipelineJobs::ExecuteJob::compute() noexcept {
   SystemProcess<LaunchType::PTY> process(cmdline);
   if (process.dispatch_process() == ProcessDispatchStatus::InternalError) {
     // if pty fails, fall back to exec.
+    if (CLI::is_interactive())
+      CLI::write_to_log(std::format(
+          "{}{}warning:{} dispatching pty failed, falling back to execv.\n",
+          CLIColour::yellow(), CLIColour::bold(), CLIColour::reset()));
     return this->compute_fallback();
   }
 
