@@ -563,8 +563,11 @@ Interpreter::compute_latest_dependency_change(IList<IString> dependencies) {
         Filesystem::get_file_timestamp(dependency.to_string());
     if (modified_i && latest_modification < modified_i)
       latest_modification = *modified_i;
-    if (!task) {
+    if (!task && modified_i) {
       continue;
+    } else if (!task) {
+      // file does not exist, nor is there a task.
+      ErrorHandler::halt(EDependencyFailed{dependency, dependency.to_string()});
     }
 
     // context stack and recursion detection.
@@ -594,7 +597,6 @@ Interpreter::compute_latest_dependency_change(IList<IString> dependencies) {
 void Interpreter::solve_dependencies(IList<IString> dependencies,
                                      std::string parent_iteration,
                                      bool parallel) {
-  // std::optional<size_t> latest_modification;
   auto topography = parallel ? PipelineSchedulingTopography::Parallel
                              : PipelineSchedulingTopography::Sequential;
   auto scheduler =
@@ -602,11 +604,6 @@ void Interpreter::solve_dependencies(IList<IString> dependencies,
 
   for (IString dependency : dependencies.contents) {
     std::optional<Task> task = find_task(dependency.to_string());
-    // std::optional<size_t> modified_i =
-    //     OSLayer::get_file_timestamp(dependency.to_string());
-    // if (!latest_modification ||
-    //     (modified_i && latest_modification < modified_i))
-    //   latest_modification = modified_i;
     if (!task) {
       continue;
     }
@@ -617,11 +614,8 @@ void Interpreter::solve_dependencies(IList<IString> dependencies,
   }
 
   scheduler.send_and_await();
-  // bool success = !scheduler.had_errors();
   if (scheduler.had_errors())
     ErrorHandler::trigger_report();
-
-  // return {success, latest_modification};
 }
 
 void Interpreter::run_task(RunContext run_context) {

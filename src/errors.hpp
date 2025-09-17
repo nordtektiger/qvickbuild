@@ -148,19 +148,6 @@ public:
   EAmbiguousTask(Task);
 };
 
-class EDependencyStatus : public BuildError {
-private:
-  Task task;
-  IString dependency_where;
-  std::string dependency_value;
-
-public:
-  std::string render_error(std::vector<unsigned char> config) override;
-  char const *get_exception_msg() override;
-  EDependencyStatus() = delete;
-  EDependencyStatus(Task, IString, std::string);
-};
-
 class EDependencyFailed : public BuildError {
 private:
   IValue dependency;

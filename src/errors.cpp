@@ -427,33 +427,6 @@ char const *EAmbiguousTask::get_exception_msg() {
   return "Ambiguous topmost task";
 }
 
-EDependencyStatus::EDependencyStatus(Task task, IString dependency_where,
-                                     std::string dependency_value)
-    : dependency_where(dependency_where) {
-  this->task = task;
-  this->dependency_value = dependency_value;
-}
-
-std::string EDependencyStatus::render_error(std::vector<unsigned char> config) {
-  ReferenceView task_view =
-      ErrorRenderer::get_reference_view(config, task.reference);
-  StreamReference dep_where_ref = dependency_where.reference;
-  ReferenceView ref_view =
-      ErrorRenderer::get_reference_view(config, dep_where_ref);
-  std::string rendered_view =
-      ErrorRenderer::get_rendered_view(task_view, "task defined here");
-  return std::format("{}{}error:{}{} dependency '{}' defined on line {} and "
-                     "referred to on line {} "
-                     "not met; building the task failed.{}\n{}",
-                     CLIColour::red(), CLIColour::bold(), CLIColour::reset(),
-                     CLIColour::bold(), dependency_value, task_view.line_num,
-                     ref_view.line_num, CLIColour::reset(), rendered_view);
-}
-
-char const *EDependencyStatus::get_exception_msg() {
-  return "Dependency status";
-}
-
 EDependencyFailed::EDependencyFailed(IValue dep, std::string dependency_value)
     : dependency(dep) {
   this->dependency_value = dependency_value;
@@ -989,11 +962,11 @@ template void ErrorHandler::halt<EEmptyExpression>(EEmptyExpression);
 template void ErrorHandler::halt<EListTypeMismatch>(EListTypeMismatch);
 template void ErrorHandler::halt<EReplaceTypeMismatch>(EReplaceTypeMismatch);
 template void ErrorHandler::halt<EReplaceChunksLength>(EReplaceChunksLength);
-template void ErrorHandler::halt<EDependencyStatus>(EDependencyStatus);
 template void ErrorHandler::halt<EVariableTypeMismatch>(EVariableTypeMismatch);
 template void ErrorHandler::halt<ENoTasks>(ENoTasks);
 template void ErrorHandler::halt<ETaskNotFound>(ETaskNotFound);
 template void ErrorHandler::halt<EAmbiguousTask>(EAmbiguousTask);
+template void ErrorHandler::halt<EDependencyFailed>(EDependencyFailed);
 template void ErrorHandler::halt<ENonZeroProcess>(ENonZeroProcess);
 template void ErrorHandler::halt<EProcessInternal>(EProcessInternal);
 template void ErrorHandler::halt<EInvalidInputFile>(EInvalidInputFile);
@@ -1031,12 +1004,12 @@ template void
     ErrorHandler::soft_report<EReplaceTypeMismatch>(EReplaceTypeMismatch);
 template void
     ErrorHandler::soft_report<EReplaceChunksLength>(EReplaceChunksLength);
-template void ErrorHandler::soft_report<EDependencyStatus>(EDependencyStatus);
 template void
     ErrorHandler::soft_report<EVariableTypeMismatch>(EVariableTypeMismatch);
 template void ErrorHandler::soft_report<ENoTasks>(ENoTasks);
 template void ErrorHandler::soft_report<ETaskNotFound>(ETaskNotFound);
 template void ErrorHandler::soft_report<EAmbiguousTask>(EAmbiguousTask);
+template void ErrorHandler::soft_report<EDependencyFailed>(EDependencyFailed);
 template void ErrorHandler::soft_report<ENonZeroProcess>(ENonZeroProcess);
 template void ErrorHandler::soft_report<EProcessInternal>(EProcessInternal);
 template void ErrorHandler::soft_report<EInvalidInputFile>(EInvalidInputFile);
