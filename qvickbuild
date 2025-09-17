@@ -45,6 +45,10 @@ install_dir = "/usr/bin";
         "mkdir -p ./bin";
 }
 
+"phony" {
+  run = "echo header!";
+}
+
 # object files.
 objects_debug as obj {
   # if a header is changed, everything needs to be rebuilt.

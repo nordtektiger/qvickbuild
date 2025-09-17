@@ -554,7 +554,6 @@ public:
 
 size_t
 Interpreter::compute_latest_dependency_change(IList<IString> dependencies) {
-  // std::optional<size_t> latest_modification;
   size_t latest_modification = 0;
   for (IString dependency : dependencies.contents) {
     std::optional<Task> task = find_task(dependency.to_string());
@@ -581,14 +580,17 @@ Interpreter::compute_latest_dependency_change(IList<IString> dependencies) {
       ErrorHandler::halt(ERecursiveTask{*task, dependency.to_string()});
     }
 
-    std::optional<IList<IString>> dependencies_recursive =
+    std::optional<IList<IString>> dependencies_nested =
         evaluate_field_optional_strict<IList<IString>>(
             DEPENDS, {task, dependency.to_string()});
-    if (dependencies_recursive) {
-      size_t modification_recursive =
-          compute_latest_dependency_change(*dependencies_recursive);
-      if (latest_modification < modification_recursive)
-        latest_modification = modification_recursive;
+    if (dependencies_nested) {
+      size_t modification_nested =
+          compute_latest_dependency_change(*dependencies_nested);
+      if (latest_modification < modification_nested)
+        latest_modification = modification_nested;
+    } else if (task) {
+      // task exists but doesn't have any dependencies.
+      return SIZE_MAX;
     }
   }
   return latest_modification;
@@ -645,7 +647,6 @@ void Interpreter::run_task(RunContext run_context) {
     std::optional<size_t> latest_this_change =
         Filesystem::get_file_timestamp(task_iteration);
     if (latest_this_change && *latest_this_change >= latest_dependency_change) {
-      // todo: do we really know that the dependencies don't need to be rebuilt?
       CLI::increment_skipped_tasks();
       return;
     }
