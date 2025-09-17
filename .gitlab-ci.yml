@@ -16,7 +16,7 @@ test:
   stage: test
   image: archlinux:base-devel
   script:
-    - ./bin/qvickbuild test
     - ./bin/qvickbuild
+    - ./bin/qvickbuild test
   dependencies:
     - build
