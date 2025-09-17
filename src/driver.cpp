@@ -10,6 +10,7 @@
 #include "pipeline.hpp"
 
 #include <cassert>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <iostream>
@@ -19,7 +20,6 @@
 Driver::Driver(Setup setup) {
   this->state = std::make_unique<DriverState>(DriverState{setup});
 }
-
 Setup Driver::default_setup() {
   return Setup{std::nullopt, InputMethod::ConfigFile, "./qvickbuild",
                LogLevel::Standard, false};
@@ -28,6 +28,8 @@ Setup Driver::default_setup() {
 std::vector<unsigned char> Driver::get_config() {
   switch (this->state->setup.input_method) {
   case InputMethod::ConfigFile: {
+    if (!std::filesystem::is_regular_file(this->state->setup.input_file))
+      ErrorHandler::halt(EInvalidInputFile{this->state->setup.input_file});
     std::ifstream config_file(this->state->setup.input_file, std::ios::binary);
     if (!config_file.is_open())
       ErrorHandler::halt(EInvalidInputFile{this->state->setup.input_file});
