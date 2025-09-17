@@ -31,15 +31,6 @@ std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>>
 ContextStack::dump_stack() {
   return stack;
 }
-std::vector<std::shared_ptr<Frame>> ContextStack::dump_flattened_stack() {
-  std::unique_lock<std::mutex> guard(ContextStack::stack_lock);
-  std::vector<std::shared_ptr<Frame>> flattened_stack;
-  for (auto [_thead_hash, context_stack] : stack) {
-    flattened_stack.insert(flattened_stack.end(), context_stack.begin(),
-                           context_stack.end());
-  }
-  return flattened_stack;
-}
 std::vector<std::shared_ptr<Frame>> ContextStack::export_local_stack() {
   std::thread::id thread_id = std::this_thread::get_id();
   size_t thread_hash = std::hash<std::thread::id>{}(thread_id);

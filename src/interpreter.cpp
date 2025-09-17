@@ -151,7 +151,7 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
 
   // check whether we're shooting ourselves and the stack in the foot.
   bool recursive = StaticVerify::find_recursive_variable(
-      ContextStack::dump_flattened_stack(), identifier.content);
+      ContextStack::export_local_stack(), identifier.content);
   if (recursive)
     ErrorHandler::halt(ERecursiveVariable{identifier});
 
@@ -541,6 +541,9 @@ public:
   }
   void compute() noexcept {
     try {
+      ContextStack::import_local_stack(run_context.parent_frame_stack);
+      FrameGuard frame{DependencyBuildFrame(run_context.task_iteration,
+                                            run_context.task.reference)};
       function_ptr(run_context);
     } catch (...) {
       this->report_error();
@@ -555,6 +558,7 @@ Interpreter::compute_latest_dependency_change(IList<IString> dependencies) {
   size_t latest_modification = 0;
   for (IString dependency : dependencies.contents) {
     std::optional<Task> task = find_task(dependency.to_string());
+
     std::optional<size_t> modified_i =
         Filesystem::get_file_timestamp(dependency.to_string());
     if (modified_i && latest_modification < modified_i)
@@ -562,6 +566,18 @@ Interpreter::compute_latest_dependency_change(IList<IString> dependencies) {
     if (!task) {
       continue;
     }
+
+    // context stack and recursion detection.
+    FrameGuard frame{
+        DependencyBuildFrame(dependency.to_string(), task->reference)};
+    // protects against unbound recursion.
+    bool recursive = StaticVerify::find_recursive_task(
+        ContextStack::export_local_stack(), dependency.to_string());
+    if (recursive) {
+      // this_entry_handle->set_status(CLIEntryStatus::Failed);
+      ErrorHandler::halt(ERecursiveTask{*task, dependency.to_string()});
+    }
+
     std::optional<IList<IString>> dependencies_recursive =
         evaluate_field_optional_strict<IList<IString>>(
             DEPENDS, {task, dependency.to_string()});
@@ -596,7 +612,8 @@ void Interpreter::solve_dependencies(IList<IString> dependencies,
     }
     scheduler.schedule_job(std::make_shared<PipelineJobs::BuildJob>(
         [this](RunContext x) { return this->run_task(x); },
-        RunContext{*task, dependency.to_string(), parent_iteration}));
+        RunContext{*task, dependency.to_string(), parent_iteration,
+                   ContextStack::export_local_stack()}));
   }
 
   scheduler.send_and_await();
@@ -614,7 +631,7 @@ void Interpreter::run_task(RunContext run_context) {
 
   // check for recursive dependencies.
   bool recursive = StaticVerify::find_recursive_task(
-      ContextStack::dump_flattened_stack(), task_iteration);
+      ContextStack::export_local_stack(), task_iteration);
   if (recursive) {
     // this_entry_handle->set_status(CLIEntryStatus::Failed);
     ErrorHandler::halt(ERecursiveTask{task, task_iteration});
@@ -747,5 +764,5 @@ void Interpreter::build() {
   }
 
   FrameGuard frame{EntryBuildFrame(task_iteration, task->reference)};
-  run_task(RunContext{*task, task_iteration, std::nullopt});
+  run_task(RunContext{*task, task_iteration, std::nullopt, {}});
 }

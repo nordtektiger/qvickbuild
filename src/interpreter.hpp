@@ -7,6 +7,8 @@ template <typename T> struct IList;
 #include <variant>
 using IValue = std::variant<IString, IBool, IList<IString>, IList<IBool>>;
 
+class Frame;
+
 #include "driver.hpp"
 #include "parser.hpp"
 #include "tracking.hpp"
@@ -84,6 +86,7 @@ struct RunContext {
   Task task;
   std::string task_iteration;
   std::optional<std::string> parent_iteration;
+  std::vector<std::shared_ptr<Frame>> parent_frame_stack;
 };
 
 class Interpreter {
