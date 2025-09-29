@@ -20,6 +20,7 @@ private:
   get_initial_rendered_characters(std::string, size_t);
 
   static std::string wrap_with_padding(size_t, std::string);
+  static std::string draw_handle_head(CLIEntryHandle const &);
   static std::string draw_handle(CLIEntryHandle const &);
   static std::string ensure_clear(std::string);
 

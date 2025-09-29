@@ -15,6 +15,7 @@
 #define DEPENDS_PARALLEL "depends_parallel"
 #define RUN "run"
 #define RUN_PARALLEL "run_parallel"
+#define VISIBLE "visible"
 
 #define IMMUTABLE true
 #define MUTABLE false
@@ -656,14 +657,17 @@ void Interpreter::run_task(RunContext run_context) {
 
   // handle is generated here because we know for a fact that the task will need
   // to be rebuilt - we have already checked that it isn't cached.
+  std::optional<IBool> visible = evaluate_field_default_strict<IBool>(
+      VISIBLE, {task, task_iteration}, IBool(true, task.reference, IMMUTABLE));
   if (parent_iteration) {
     auto parent_entry_handle =
         CLI::get_entry_from_description(*parent_iteration);
-    this_entry_handle = CLI::derive_entry_from(
-        parent_entry_handle, task_iteration, CLIEntryStatus::Scheduled);
-  } else {
     this_entry_handle =
-        CLI::generate_entry(task_iteration, CLIEntryStatus::Scheduled);
+        CLI::derive_entry_from(parent_entry_handle, task_iteration,
+                               CLIEntryStatus::Scheduled, *visible);
+  } else {
+    this_entry_handle = CLI::generate_entry(
+        task_iteration, CLIEntryStatus::Scheduled, *visible);
     this_entry_handle->set_highlighted(true);
   }
 
@@ -708,7 +712,8 @@ void Interpreter::run_task(RunContext run_context) {
     ErrorHandler::trigger_report();
   }
 
-  this_entry_handle->set_status(CLIEntryStatus::Finished);
+  if (this_entry_handle)
+    this_entry_handle->set_status(CLIEntryStatus::Finished);
   // LOG_STANDARD(GREEN << "✓" << RESET << " finished " << task_iteration);
 }
 

@@ -33,6 +33,7 @@ private:
   std::optional<std::weak_ptr<CLIEntryHandle>> parent;
   std::vector<std::shared_ptr<CLIEntryHandle>> children;
   CLIEntryStatus status;
+  bool visible; /* cannot be changed after creation */
   std::chrono::time_point<std::chrono::high_resolution_clock> time_finished;
   bool highlighted;
 
@@ -40,11 +41,12 @@ public:
   CLIEntryHandle() = delete;
   explicit CLIEntryHandle(std::string,
                           std::optional<std::shared_ptr<CLIEntryHandle>>,
-                          CLIEntryStatus);
+                          CLIEntryStatus, bool);
 
   void set_status(CLIEntryStatus);
   void set_highlighted(bool);
   CLIEntryStatus get_status() const;
+  bool get_highlighted() const;
   std::string get_description() const;
   std::chrono::time_point<std::chrono::high_resolution_clock>
   get_time_finished() const;
@@ -101,10 +103,10 @@ private:
 
 public:
   static std::shared_ptr<CLIEntryHandle> generate_entry(std::string,
-                                                        CLIEntryStatus);
+                                                        CLIEntryStatus, bool);
   static std::shared_ptr<CLIEntryHandle>
-      derive_entry_from(std::shared_ptr<CLIEntryHandle>, std::string,
-                        CLIEntryStatus);
+  derive_entry_from(std::shared_ptr<CLIEntryHandle>, std::string,
+                    CLIEntryStatus, bool);
   static std::shared_ptr<CLIEntryHandle>
       get_entry_from_description(std::string);
 

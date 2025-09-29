@@ -5,12 +5,13 @@
 CLIEntryHandle::CLIEntryHandle(
     std::string description,
     std::optional<std::shared_ptr<CLIEntryHandle>> parent,
-    CLIEntryStatus status) {
+    CLIEntryStatus status, bool visible) {
   this->description = description;
   this->parent = parent;
   this->children = {};
   this->status = status;
   this->highlighted = false;
+  this->visible = visible;
 }
 
 void CLIEntryHandle::set_highlighted(bool highlighted) {
@@ -27,6 +28,8 @@ void CLIEntryHandle::set_status(CLIEntryStatus status) {
 }
 
 CLIEntryStatus CLIEntryHandle::get_status() const { return this->status; }
+
+bool CLIEntryHandle::get_highlighted() const { return this->highlighted; }
 
 std::string CLIEntryHandle::get_description() const {
   return this->description;
@@ -47,7 +50,7 @@ std::condition_variable CLI::io_wake_condition = std::condition_variable();
 std::atomic_bool CLI::io_wake_redraw = false;
 std::atomic_bool CLI::stop = false;
 size_t CLI::tasks_skipped = 0;
-CLIOptions CLI::cli_options = CLIOptions();
+CLIOptions CLI::cli_options = {};
 
 void CLI::legacy_update_status(CLIEntryHandle const &entry) {
   if (CLI::cli_options.capabilities.movement)
@@ -69,10 +72,11 @@ void CLI::legacy_update_status(CLIEntryHandle const &entry) {
 }
 
 std::shared_ptr<CLIEntryHandle> CLI::generate_entry(std::string description,
-                                                    CLIEntryStatus status) {
+                                                    CLIEntryStatus status,
+                                                    bool visible) {
   std::unique_lock<std::mutex> guard(CLI::io_modify_lock);
-  std::shared_ptr<CLIEntryHandle> handle_ptr =
-      std::make_shared<CLIEntryHandle>(description, std::nullopt, status);
+  std::shared_ptr<CLIEntryHandle> handle_ptr = std::make_shared<CLIEntryHandle>(
+      description, std::nullopt, status, visible);
   CLI::entry_handles.push_back(handle_ptr);
 
   guard.unlock();
@@ -86,10 +90,11 @@ std::shared_ptr<CLIEntryHandle> CLI::generate_entry(std::string description,
 
 std::shared_ptr<CLIEntryHandle>
 CLI::derive_entry_from(std::shared_ptr<CLIEntryHandle> parent,
-                       std::string description, CLIEntryStatus status) {
+                       std::string description, CLIEntryStatus status,
+                       bool visible) {
   std::unique_lock<std::mutex> guard(CLI::io_modify_lock);
   auto handle_ptr =
-      std::make_shared<CLIEntryHandle>(description, parent, status);
+      std::make_shared<CLIEntryHandle>(description, parent, status, visible);
   parent->children.push_back(handle_ptr);
 
   guard.unlock();
@@ -129,9 +134,7 @@ CLI::search_handle_recursive(std::string description,
   return std::nullopt;
 }
 
-bool CLI::is_interactive() {
-  return CLI::cli_options.capabilities.movement;
-}
+bool CLI::is_interactive() { return CLI::cli_options.capabilities.movement; }
 
 void CLI::initialize(CLIOptions cli_options) {
   CLIColour::set_formatting(cli_options.capabilities.colour);

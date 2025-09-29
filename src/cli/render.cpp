@@ -85,7 +85,9 @@ std::string CLIRenderer::wrap_with_padding(size_t padding,
                                            std::string content) {
   size_t width = CLIEnvironment::detect_width();
   std::string padding_str = std::string(padding, ' ');
-  std::string formatted = padding_str;
+  std::string formatted /* = padding_str */;
+
+  std::string _original = content;
 
   std::string line_buffer;
   size_t bytes_consumed;
@@ -104,10 +106,10 @@ std::string CLIRenderer::wrap_with_padding(size_t padding,
   if (!formatted.empty() && formatted[formatted.size() - 1] == '\n')
     formatted = formatted.substr(0, formatted.size() - 1);
 
-  return formatted;
+  return formatted + _original.substr(0, 0);
 }
 
-std::string CLIRenderer::draw_handle(CLIEntryHandle const &entry_handle) {
+std::string CLIRenderer::draw_handle_head(CLIEntryHandle const &entry_handle) {
   std::string out;
   switch (entry_handle.get_status()) {
   case CLIEntryStatus::Scheduled:
@@ -129,9 +131,19 @@ std::string CLIRenderer::draw_handle(CLIEntryHandle const &entry_handle) {
     out += CLIColour::bold();
   out += entry_handle.get_description();
   out += CLIColour::reset();
+
+  return out;
+}
+
+std::string CLIRenderer::draw_handle(CLIEntryHandle const &entry_handle) {
+  std::string out;
+
+  if (entry_handle.visible)
+    out += CLIRenderer::draw_handle_head(entry_handle) + "\n";
+
+  // sort child entires based on status.
   std::vector<std::shared_ptr<CLIEntryHandle>> entry_children =
       entry_handle.children;
-  // sort entires based on status.
   std::sort(
       entry_children.begin(), entry_children.end(),
       [](std::shared_ptr<CLIEntryHandle> a, std::shared_ptr<CLIEntryHandle> b) {
@@ -142,10 +154,16 @@ std::string CLIRenderer::draw_handle(CLIEntryHandle const &entry_handle) {
           return static_cast<int>(a->get_status()) >
                  static_cast<int>(b->get_status());
       });
+
+  // draw child entries.
+  int entry_children_padding = entry_handle.visible ? 2 : 0;
   for (std::shared_ptr<CLIEntryHandle> const &child_handle : entry_children) {
-    out += "\n" + CLIRenderer::wrap_with_padding(
-                      2, CLIRenderer::draw_handle(*child_handle));
+    std::string child_buffer = CLIRenderer::wrap_with_padding(
+        entry_children_padding, CLIRenderer::draw_handle(*child_handle));
+    if (!child_buffer.empty())
+      out += child_buffer + "\n";
   }
+
   return CLIRenderer::wrap_with_padding(0, out);
 }
 
