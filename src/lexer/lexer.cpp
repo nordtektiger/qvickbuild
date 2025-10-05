@@ -1,9 +1,6 @@
 #include "lexer.hpp"
-#include "errors.hpp"
-#include "tracking.hpp"
-#include <format>
+#include "../errors/errors.hpp"
 #include <functional>
-#include <variant>
 
 // used for determining e.g. variable names.
 inline bool is_alphanumeric(char x) {

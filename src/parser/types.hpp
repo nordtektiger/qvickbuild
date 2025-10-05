@@ -1,13 +1,9 @@
-#ifndef PARSER_H
-#define PARSER_H
+#ifndef PARSER_TYPES_HPP
+#define PARSER_TYPES_HPP
 
-#include "lexer.hpp"
-#include "tracking.hpp"
+#include "../lexer/types.hpp"
 #include <map>
 #include <memory>
-#include <string>
-#include <variant>
-#include <vector>
 
 struct Identifier;
 struct Literal;
@@ -58,26 +54,6 @@ struct Replace {
   // Replace() = delete;
 };
 
-// visitor that simply returns the origin of an AST object.
-struct ASTVisitReference {
-  StreamReference operator()(Identifier const &identifier) {
-    return identifier.reference;
-  }
-  StreamReference operator()(Literal const &literal) {
-    return literal.reference;
-  }
-  StreamReference operator()(FormattedLiteral const &formatted_literal) {
-    return formatted_literal.reference;
-  }
-  StreamReference operator()(List const &list) { return list.reference; }
-  StreamReference operator()(Boolean const &boolean) {
-    return boolean.reference;
-  }
-  StreamReference operator()(Replace const &replace) {
-    return replace.reference;
-  }
-};
-
 // config: fields, tasks, ast
 struct Field {
   Identifier identifier;
@@ -103,33 +79,6 @@ struct AST {
   // make the copy constructor explicit to emphasize performance.
   explicit AST(AST const &) = default;
   AST() = default;
-};
-
-class Parser {
-private:
-  std::vector<Token> m_token_stream;
-  AST m_ast;
-
-  size_t m_index;
-  std::optional<Token> m_current;
-  std::optional<Token> m_next;
-
-  std::optional<Token> consume_token();
-  std::optional<Token> consume_token(int n);
-  std::optional<Token> consume_if(TokenType token_type);
-  bool check_current(TokenType token_type);
-  bool check_next(TokenType token_type);
-
-  std::optional<ASTObject> parse_ast_object();
-  std::optional<ASTObject> parse_list();
-  std::optional<ASTObject> parse_replace();
-  std::optional<ASTObject> parse_primary();
-  std::optional<Field> parse_field();
-  std::optional<Task> parse_task();
-
-public:
-  Parser(std::vector<Token> token_stream);
-  AST parse_tokens();
 };
 
 #endif

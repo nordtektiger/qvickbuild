@@ -1,8 +1,8 @@
 #include "processes.hpp"
-#include "cli/colour.hpp"
-#include "errors.hpp"
-#include "kal/processes.hpp"
-#include "tracking.hpp"
+#include "../cli/colour.hpp"
+#include "../errors/errors.hpp"
+#include "../kal/processes.hpp"
+#include "../lexer/tracking.hpp"
 #include <format>
 #include <sys/stat.h>
 

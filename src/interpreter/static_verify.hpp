@@ -1,8 +1,7 @@
 #ifndef STATIC_VERIFY_HPP
 #define STATIC_VERIFY_HPP
 
-#include "errors.hpp"
-#include "parser.hpp"
+#include "../errors/types.hpp"
 
 class StaticVerify {
 public:

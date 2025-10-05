@@ -1,10 +1,6 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-// token context indexes.
-#define CTX_STR 0
-#define CTX_VEC 1
-
 // macro madness - this just generates the appropriate function signatures,
 // along with a vector of lambda functions calling every rule.
 // [note]: This does __not__ automatically match tokens inside of formatted
@@ -30,55 +26,10 @@
 #define _LAMBDA_DECLARE_LIST(x) _LAMBDA_DECLARE(x),
 #define LAMBDA_DECLARE_ALL LEXING_RULES(_LAMBDA_DECLARE_LIST)
 
-#include "tracking.hpp"
+#include "types.hpp"
 #include <functional>
 #include <optional>
-#include <string>
-#include <variant>
 #include <vector>
-
-// defines what type of token it is.
-enum class TokenType {
-  Identifier,       // e.g. variable names
-  Literal,          // pure strings
-  FormattedLiteral, // formatted strings
-  Equals,           // `=`
-  Modify,           // `:`
-  LineStop,         // ';`
-  Arrow,            // `->`
-  IterateAs,        // `as`
-  Separator,        // ','
-  ExpressionOpen,   // `[`
-  ExpressionClose,  // `]`
-  TaskOpen,         // `{`
-  TaskClose,        // `}`
-  True,             // `true`
-  False,            // `false`
-};
-
-// small struct for tracking the origin of symbols.
-struct InputStreamPos {
-  size_t index;       // ASCII stream origin
-  size_t line;        // Line number
-  /* size_t length */ // Length of symbol for e.g. highlighting
-  bool operator==(InputStreamPos const &other) const {
-    return this->index == other.index && this->line == other.line;
-  }
-};
-// struct InternalNode {};
-// using ObjectReference = std::string;
-// using Origin = std::variant<InputStreamPos, ObjectReference, InternalNode>;
-
-struct Token;
-using TokenContext =
-    std::optional<std::variant<std::string, std::vector<Token>>>;
-
-// defines a general token.
-struct Token {
-  TokenType type;
-  TokenContext context;
-  StreamReference reference;
-};
 
 // work class.
 class Lexer {

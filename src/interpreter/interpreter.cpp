@@ -1,13 +1,14 @@
 #include "interpreter.hpp"
-#include "errors.hpp"
-#include "filesystem.hpp"
+#include "../errors/errors.hpp"
+#include "../lexer/tracking.hpp"
+#include "../system/filesystem.hpp"
+#include "../system/pipeline.hpp"
+#include "../system/processes.hpp"
 #include "literals.hpp"
-#include "pipeline.hpp"
-#include "processes.hpp"
 #include "static_verify.hpp"
-#include "tracking.hpp"
 
 #include <cassert>
+#include <functional>
 #include <memory>
 #include <ranges>
 
@@ -20,66 +21,97 @@
 #define IMMUTABLE true
 #define MUTABLE false
 
-template <typename T> bool is_immutable(T);
-template <typename T> T autocast_strict(IValue);
-
-template <> bool is_immutable(IValue value) {
-  if (std::holds_alternative<IString>(value))
-    return std::get<IString>(value).immutable;
-  else if (std::holds_alternative<IBool>(value))
-    return std::get<IBool>(value).immutable;
-  else if (std::holds_alternative<IList<IString>>(value))
-    return std::get<IList<IString>>(value).immutable;
-  else if (std::holds_alternative<IList<IBool>>(value))
-    return std::get<IList<IBool>>(value).immutable;
-  assert(false && "invalid type for immutability checking");
+/* -- type casting. -- */
+template <> IString IValue::autocast() { return this->cast_to_istring(); }
+template <> IBool IValue::autocast() { return this->cast_to_ibool(); }
+template <> IList<IString> IValue::autocast() {
+  return this->cast_to_ilist_istring();
+}
+template <> IList<IBool> IValue::autocast() {
+  return this->cast_to_ilist_ibool();
 }
 
-template <> IList<IString> autocast_strict(IValue in) {
-  if (std::holds_alternative<IList<IString>>(in))
-    return std::get<IList<IString>>(in);
-  else if (std::holds_alternative<IString>(in)) {
-    return IList<IString>{{std::get<IString>(in)},
-                          std::get<IString>(in).reference,
-                          is_immutable(in)};
-  }
-  ErrorHandler::halt(EVariableTypeMismatch{in, "string or list<string>"});
+IType IString::get_type() { return IType::IString; }
+IType IBool::get_type() { return IType::IBool; }
+template <> IType IList<IString>::get_type() { return IType::IList_IString; }
+template <> IType IList<IBool>::get_type() { return IType::IList_IBool; }
+
+std::unique_ptr<IValue> IString::clone() {
+  return std::make_unique<IString>(*this);
+}
+std::unique_ptr<IValue> IBool::clone() {
+  return std::make_unique<IBool>(*this);
+}
+template <> std::unique_ptr<IValue> IList<IString>::clone() {
+  return std::make_unique<IList<IString>>(*this);
+}
+template <> std::unique_ptr<IValue> IList<IBool>::clone() {
+  return std::make_unique<IList<IBool>>(*this);
 }
 
-template <> IString autocast_strict(IValue in) {
-  if (std::holds_alternative<IString>(in))
-    return std::get<IString>(in);
-  ErrorHandler::halt(EVariableTypeMismatch{in, "string"});
+/* istring. */
+IString IString::cast_to_istring() { return *this; }
+IBool IString::cast_to_ibool() {
+  ErrorHandler::halt(EVariableTypeMismatch{*this, "bool"});
+}
+IList<IString> IString::cast_to_ilist_istring() {
+  return IList<IString>{{*this}, this->reference, this->immutable};
+}
+IList<IBool> IString::cast_to_ilist_ibool() {
+  ErrorHandler::halt(EVariableTypeMismatch{*this, "bool or list<bool>"});
 }
 
-template <> IList<IBool> autocast_strict(IValue in) {
-  if (std::holds_alternative<IList<IBool>>(in))
-    return std::get<IList<IBool>>(in);
-  else if (std::holds_alternative<IBool>(in)) {
-    return IList<IBool>{
-        {std::get<IBool>(in)}, std::get<IBool>(in).reference, is_immutable(in)};
-  }
-  ErrorHandler::halt(EVariableTypeMismatch{in, "bool or list<bool>"});
+/* ibool. */
+IString IBool::cast_to_istring() {
+  ErrorHandler::halt(EVariableTypeMismatch{*this, "string"});
+}
+IBool IBool::cast_to_ibool() { return *this; }
+IList<IString> IBool::cast_to_ilist_istring() {
+  ErrorHandler::halt(EVariableTypeMismatch{*this, "string or list<string>"});
+}
+IList<IBool> IBool::cast_to_ilist_ibool() {
+  return IList<IBool>{{*this}, this->reference, this->immutable};
 }
 
-template <typename T> bool is_immutable(T value) { return value.immutable; }
-
-template <> IBool autocast_strict(IValue in) {
-  if (std::holds_alternative<IBool>(in))
-    return std::get<IBool>(in);
-  ErrorHandler::halt(EVariableTypeMismatch{in, "bool"});
+/* ilist<istring>. */
+template <> IString IList<IString>::cast_to_istring() {
+  if (this->contents.size() == 1)
+    return this->contents[0];
+  ErrorHandler::halt(EVariableTypeMismatch{*this, "string"});
+}
+template <> IBool IList<IString>::cast_to_ibool() {
+  ErrorHandler::halt(EVariableTypeMismatch{*this, "bool"});
+}
+template <> IList<IString> IList<IString>::cast_to_ilist_istring() {
+  return *this;
+}
+template <> IList<IBool> IList<IString>::cast_to_ilist_ibool() {
+  ErrorHandler::halt(EVariableTypeMismatch{*this, "bool or list<bool>"});
 }
 
-// constructors & casts for internal data types.
-IString::IString(Token token, bool immutable) : ICoreType(immutable) {
+/* ilist<ibool>. */
+template <> IString IList<IBool>::cast_to_istring() {
+  ErrorHandler::halt(EVariableTypeMismatch{*this, "string"});
+}
+template <> IBool IList<IBool>::cast_to_ibool() {
+  if (this->contents.size() == 1)
+    return this->contents[0];
+  ErrorHandler::halt(EVariableTypeMismatch{*this, "bool"});
+}
+template <> IList<IString> IList<IBool>::cast_to_ilist_istring() {
+  ErrorHandler::halt(EVariableTypeMismatch{*this, "string or list<string>"});
+}
+template <> IList<IBool> IList<IBool>::cast_to_ilist_ibool() { return *this; }
+
+/* -- constructors & casts for internal data types. */
+IString::IString(Token token, bool immutable)
+    : IValue(immutable, token.reference) {
   assert(token.type == TokenType::Literal &&
          "attempt to construct IString from non-literal token");
-  this->reference = token.reference;
   this->content = std::get<CTX_STR>(*token.context);
 };
 IString::IString(std::string content, StreamReference reference, bool immutable)
-    : ICoreType(immutable) {
-  this->reference = reference;
+    : IValue(immutable, reference) {
   this->content = content;
 }
 std::string IString::to_string() const { return (this->content); };
@@ -87,15 +119,13 @@ bool IString::operator==(IString const other) const {
   return this->content == other.content;
 }
 
-IBool::IBool(Token token, bool immutable) : ICoreType(immutable) {
+IBool::IBool(Token token, bool immutable) : IValue(immutable, token.reference) {
   assert((token.type == TokenType::True || token.type == TokenType::False) &&
          "attempt to construct IBool from non-boolean token");
-  this->reference = token.reference;
   this->content = (token.type == TokenType::True);
 }
 IBool::IBool(bool content, StreamReference reference, bool immutable)
-    : ICoreType(immutable) {
-  this->reference = reference;
+    : IValue(immutable, reference) {
   this->content = content;
 }
 bool IBool::operator==(IBool const other) const {
@@ -106,9 +136,8 @@ IBool::operator bool() const { return (this->content); };
 template <typename T>
 IList<T>::IList(std::vector<T> contents, StreamReference reference,
                 bool immutable)
-    : ICoreType(immutable) {
+    : IValue(immutable, reference) {
   this->contents = contents;
-  this->reference = reference;
 }
 
 template <typename T> bool IList<T>::operator==(IList const other) const {
@@ -130,23 +159,25 @@ bool EvaluationContext::is_reachable_by(EvaluationContext const other) const {
 struct ASTEvaluate {
   EvaluationContext context;
   std::shared_ptr<EvaluationState> state;
-  IValue operator()(Identifier const &identifier);
-  IValue operator()(Literal const &literal);
-  IValue operator()(FormattedLiteral const &formatted_literal);
-  IValue operator()(List const &list);
-  IValue operator()(Boolean const &boolean);
-  IValue operator()(Replace const &replace);
+  std::unique_ptr<IValue> operator()(Identifier const &identifier);
+  std::unique_ptr<IValue> operator()(Literal const &literal);
+  std::unique_ptr<IValue> operator()(FormattedLiteral const &formatted_literal);
+  std::unique_ptr<IValue> operator()(List const &list);
+  std::unique_ptr<IValue> operator()(Boolean const &boolean);
+  std::unique_ptr<IValue> operator()(Replace const &replace);
 };
 
-IValue Interpreter::evaluate_ast_object(ASTObject ast_object,
-                                        EvaluationContext context) {
+std::unique_ptr<IValue>
+Interpreter::evaluate_ast_object(ASTObject ast_object,
+                                 EvaluationContext context) {
   // evaluation visitor can amend shared data in the state.
   std::lock_guard<std::mutex> guard(evaluation_lock);
-  IValue value = std::visit(ASTEvaluate{context, this->state}, ast_object);
+  std::unique_ptr<IValue> value =
+      std::visit(ASTEvaluate{context, this->state}, ast_object);
   return value;
 }
 
-IValue ASTEvaluate::operator()(Identifier const &identifier) {
+std::unique_ptr<IValue> ASTEvaluate::operator()(Identifier const &identifier) {
   FrameGuard frame(
       IdentifierEvaluateFrame(identifier.content, identifier.reference));
 
@@ -164,10 +195,10 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
                                   true};
 
   // check for any cached values.
-  for (ValueInstance value : state->cached_variables) {
+  for (ValueInstance &value : state->cached_variables) {
     if (value.identifier == identifier &&
         value.context.is_reachable_by(context)) {
-      return value.result;
+      return value.result->clone();
     }
   }
 
@@ -176,10 +207,11 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
     auto local_it = this->context.task_scope->fields.find(identifier.content);
     if (local_it != this->context.task_scope->fields.end()) {
       ASTEvaluate ast_visitor = {id_context, state};
-      IValue result = std::visit(ast_visitor, local_it->second.expression);
-      if (is_immutable(result))
+      std::unique_ptr<IValue> result =
+          std::visit(ast_visitor, local_it->second.expression);
+      if (result->immutable)
         state->cached_variables.push_back(
-            ValueInstance{identifier, id_context, result});
+            ValueInstance{identifier, id_context, std::move(result->clone())});
       return result;
     }
   }
@@ -187,21 +219,22 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
   // task iteration variable - this isn't cached for obvious reasons.
   if (context.task_iteration && context.task_scope)
     if (context.task_scope->iterator.content == identifier.content)
-      return IString(*context.task_iteration, context.task_scope->reference,
-                     MUTABLE);
+      return std::make_unique<IString>(*context.task_iteration,
+                                       context.task_scope->reference, MUTABLE);
 
   // global fields.
   auto global_it = this->state->ast->fields.find(identifier.content);
   if (global_it != this->state->ast->fields.end()) {
     ASTEvaluate ast_visitor = {EvaluationContext{std::nullopt, std::nullopt},
                                state};
-    IValue result = std::visit(ast_visitor, global_it->second.expression);
+    std::unique_ptr<IValue> result =
+        std::visit(ast_visitor, global_it->second.expression);
     // allow globbing: see comment above.
     EvaluationContext _context =
         EvaluationContext{std::nullopt, std::nullopt, true};
-    if (is_immutable(result))
+    if (result->immutable)
       state->cached_variables.push_back(
-          ValueInstance{identifier, _context, result});
+          ValueInstance{identifier, _context, std::move(result->clone())});
     return result;
   }
 
@@ -209,21 +242,22 @@ IValue ASTEvaluate::operator()(Identifier const &identifier) {
 }
 
 // note: we handle globbing **after** evaluating a formatted literal.
-IValue ASTEvaluate::operator()(Literal const &literal) {
-  return IString(literal.content, literal.reference, IMMUTABLE);
+std::unique_ptr<IValue> ASTEvaluate::operator()(Literal const &literal) {
+  return std::make_unique<IString>(literal.content, literal.reference,
+                                   IMMUTABLE);
 }
 
 // helper method: handles globbing.
-IValue expand_literal(IString input_istring) {
+std::unique_ptr<IValue> expand_literal(IString input_istring) {
   size_t i_asterisk = input_istring.content.find('*');
   if (i_asterisk == std::string::npos) // no globbing.
-    return {input_istring};
+    return std::make_unique<IString>(input_istring);
 
   // globbing is required.
   std::vector<std::string> paths;
   try {
     paths = Globbing::compute_paths(input_istring.content);
-  } catch (LiteralsAdjacentWildcards &_) {
+  } catch (LiteralsAdjacentWildcards &) {
     ErrorHandler::halt(EAdjacentWildcards{input_istring});
   }
 
@@ -235,45 +269,48 @@ IValue expand_literal(IString input_istring) {
   }
 
   if (contents.size() == 1)
-    return {contents[0]};
-  return IList{contents, input_istring.reference, input_istring.immutable};
+    return std::make_unique<IString>(contents[0]);
+  return std::make_unique<IList<IString>>(contents, input_istring.reference,
+                                          input_istring.immutable);
 }
 
 // note: if literal includes a `*`, globbing will be used - this is
 // expensive.
-IValue ASTEvaluate::operator()(FormattedLiteral const &formatted_literal) {
+std::unique_ptr<IValue>
+ASTEvaluate::operator()(FormattedLiteral const &formatted_literal) {
   // IString out;
   std::string out;
   bool immutable = true;
   for (ASTObject const &ast_obj : formatted_literal.contents) {
     ASTEvaluate ast_visitor = {context, state};
-    IValue obj_result = std::visit(ast_visitor, ast_obj);
+    std::unique_ptr<IValue> obj_result = std::visit(ast_visitor, ast_obj);
     // append a string.
-    if (std::holds_alternative<IString>(obj_result)) {
-      out += std::get<IString>(obj_result).content;
-      immutable &= is_immutable(obj_result);
+    if (obj_result->get_type() == IType::IString) {
+      out += dynamic_cast<IString &>(*obj_result).content;
+      immutable &= obj_result->immutable;
     }
     // append a bool.
-    else if (std::holds_alternative<IBool>(obj_result)) {
-      out += (std::get<IBool>(obj_result) ? "true" : "false");
-      immutable &= is_immutable(obj_result);
+    else if (obj_result->get_type() == IType::IBool) {
+      out += dynamic_cast<IBool &>(*obj_result) ? "true" : "false";
+      immutable &= obj_result->immutable;
     }
     // append a list of strings.
-    else if (std::holds_alternative<IList<IString>>(obj_result)) {
-      IList<IString> obj_result_list = std::get<IList<IString>>(obj_result);
+    else if (obj_result->get_type() == IType::IList_IString) {
+      IList<IString> obj_result_list =
+          dynamic_cast<IList<IString> &>(*obj_result);
       for (size_t i = 0; i < obj_result_list.contents.size(); i++) {
         out += obj_result_list.contents[i].content;
-        immutable &= is_immutable(obj_result);
+        immutable &= obj_result->immutable;
         if (i < obj_result_list.contents.size() - 1)
           out += " ";
       }
     }
     // append a list of bools.
-    else if (std::holds_alternative<IList<IBool>>(obj_result)) {
-      IList<IBool> obj_result_list = std::get<IList<IBool>>(obj_result);
+    else if (obj_result->get_type() == IType::IList_IBool) {
+      IList<IBool> obj_result_list = dynamic_cast<IList<IBool> &>(*obj_result);
       for (size_t i = 0; i < obj_result_list.contents.size(); i++) {
         out += obj_result_list.contents[i] ? "true" : "false";
-        immutable &= is_immutable(obj_result);
+        immutable &= obj_result->immutable;
         if (i < obj_result_list.contents.size() - 1)
           out += " ";
       }
@@ -283,151 +320,153 @@ IValue ASTEvaluate::operator()(FormattedLiteral const &formatted_literal) {
   if (context.use_globbing)
     return expand_literal(IString{out, formatted_literal.reference, immutable});
   else
-    return IString{out, formatted_literal.reference, immutable};
+    return std::make_unique<IString>(out, formatted_literal.reference,
+                                     immutable);
 }
 
-IValue ASTEvaluate::operator()(List const &list) {
+std::unique_ptr<IValue> ASTEvaluate::operator()(List const &list) {
   assert(list.contents.size() > 0 && "attempt to evaluate empty list");
 
   // the first element dictates the list type as lists only store one type.
   ASTEvaluate ast_visitor = {context, state};
-  IValue first_value = std::visit(ast_visitor, list.contents[0]);
+  std::unique_ptr<IValue> first_value =
+      std::visit(ast_visitor, list.contents[0]);
 
-  if (std::holds_alternative<IString>(first_value)) {
+  if (first_value->get_type() == IType::IString) {
     // evaluate list<string>
-    IList<IString> ilist{{}, list.reference, is_immutable(first_value)};
-    ilist.contents.push_back(std::get<IString>(first_value));
+    IList<IString> ilist{{}, list.reference, first_value->immutable};
+    ilist.contents.push_back(dynamic_cast<IString &>(*std::move(first_value)));
 
     // evaluate the rest of the list
     for (ASTObject const &ast_obj : list.contents | std::views::drop(1)) {
-      IValue value = std::visit(ast_visitor, ast_obj);
-      ilist.immutable &= is_immutable(value);
-      if (std::holds_alternative<IString>(value)) {
-        ilist.contents.push_back(std::get<IString>(value));
+      std::unique_ptr<IValue> value = std::visit(ast_visitor, ast_obj);
+      ilist.immutable &= value->immutable;
+      if (value->get_type() == IType::IString) {
+        ilist.contents.push_back(dynamic_cast<IString &>(*value));
         continue;
-      } else if (std::holds_alternative<IList<IString>>(value)) {
+      } else if (value->get_type() == IType::IList_IString) {
         std::vector<IString> value_contents =
-            std::get<IList<IString>>(value).contents;
+            dynamic_cast<IList<IString> &>(*value).contents;
         ilist.contents.insert(ilist.contents.end(), value_contents.begin(),
                               value_contents.end());
         continue;
       }
-      ErrorHandler::halt(EListTypeMismatch{ilist, value});
+      ErrorHandler::halt(EListTypeMismatch{ilist, *value});
     }
 
-    return ilist;
+    return std::make_unique<IList<IString>>(ilist);
 
-  } else if (std::holds_alternative<IBool>(first_value)) {
+  } else if (first_value->get_type() == IType::IBool) {
     // evaluate list<bool>
-    IList<IBool> ilist{{}, list.reference, is_immutable(first_value)};
-    ilist.contents.push_back(std::get<IBool>(first_value));
+    IList<IBool> ilist{{}, list.reference, first_value->immutable};
+    ilist.contents.push_back(dynamic_cast<IBool &>(*first_value));
 
     // evaluate the rest of the list
     for (ASTObject const &ast_obj : list.contents | std::views::drop(1)) {
-      IValue value = std::visit(ast_visitor, ast_obj);
-      ilist.immutable &= is_immutable(value);
-      if (std::holds_alternative<IBool>(value)) {
-        ilist.contents.push_back(std::get<IBool>(value));
+      std::unique_ptr<IValue> value = std::visit(ast_visitor, ast_obj);
+      ilist.immutable &= value->immutable;
+      if (value->get_type() == IType::IBool) {
+        ilist.contents.push_back(dynamic_cast<IBool &>(*value));
         continue;
-      } else if (std::holds_alternative<IList<IBool>>(value)) {
+      } else if (value->get_type() == IType::IList_IBool) {
         std::vector<IBool> value_contents =
-            std::get<IList<IBool>>(value).contents;
+            dynamic_cast<IList<IBool> &>(*value).contents;
         ilist.contents.insert(ilist.contents.end(), value_contents.begin(),
                               value_contents.end());
         continue;
       }
-      ErrorHandler::halt(EListTypeMismatch{ilist, value});
+      ErrorHandler::halt(EListTypeMismatch{ilist, *value});
     }
 
-    return ilist;
+    return std::make_unique<IList<IBool>>(ilist);
 
-  } else if (std::holds_alternative<IList<IString>>(first_value)) {
+  } else if (first_value->get_type() == IType::IList_IString) {
     // evaluate list<string>
-    IList<IString> ilist{{}, list.reference, is_immutable(first_value)};
+    IList<IString> ilist{{}, list.reference, first_value->immutable};
     std::vector<IString> first_value_contents =
-        std::get<IList<IString>>(first_value).contents;
+        dynamic_cast<IList<IString> &>(*first_value).contents;
     ilist.contents.insert(ilist.contents.end(), first_value_contents.begin(),
                           first_value_contents.end());
 
     // evaluate the rest of the list
     for (ASTObject const &ast_obj : list.contents | std::views::drop(1)) {
-      IValue value = std::visit(ast_visitor, ast_obj);
-      ilist.immutable &= is_immutable(value);
-      if (std::holds_alternative<IString>(value)) {
-        ilist.contents.push_back(std::get<IString>(value));
+      std::unique_ptr<IValue> value = std::visit(ast_visitor, ast_obj);
+      ilist.immutable &= value->immutable;
+      if (value->get_type() == IType::IString) {
+        ilist.contents.push_back(dynamic_cast<IString &>(*value));
         continue;
-      } else if (std::holds_alternative<IList<IString>>(value)) {
+      } else if (value->get_type() == IType::IList_IString) {
         std::vector<IString> value_contents =
-            std::get<IList<IString>>(value).contents;
+            dynamic_cast<IList<IString> &>(*value).contents;
         ilist.contents.insert(ilist.contents.end(), value_contents.begin(),
                               value_contents.end());
         continue;
       }
-      ErrorHandler::halt(EListTypeMismatch{ilist, value});
+      ErrorHandler::halt(EListTypeMismatch{ilist, *value});
     }
 
-    return ilist;
+    return std::make_unique<IList<IString>>(ilist);
 
-  } else if (std::holds_alternative<IList<IBool>>(first_value)) {
+  } else if (first_value->get_type() == IType::IList_IBool) {
     // evaluate list<bool>
-    IList<IBool> ilist{{}, list.reference, is_immutable(first_value)};
+    IList<IBool> ilist{{}, list.reference, first_value->immutable};
     std::vector<IBool> first_value_contents =
-        std::get<IList<IBool>>(first_value).contents;
+        dynamic_cast<IList<IBool> &>(*first_value).contents;
     ilist.contents.insert(ilist.contents.end(), first_value_contents.begin(),
                           first_value_contents.end());
 
     // evaluate the rest of the list
     for (ASTObject const &ast_obj : list.contents | std::views::drop(1)) {
-      IValue value = std::visit(ast_visitor, ast_obj);
-      ilist.immutable &= is_immutable(value);
-      if (std::holds_alternative<IBool>(value)) {
-        ilist.contents.push_back(std::get<IBool>(value));
+      std::unique_ptr<IValue> value = std::visit(ast_visitor, ast_obj);
+      ilist.immutable &= value->immutable;
+      if (value->get_type() == IType::IBool) {
+        ilist.contents.push_back(dynamic_cast<IBool &>(*value));
         continue;
-      } else if (std::holds_alternative<IList<IBool>>(value)) {
+      } else if (value->get_type() == IType::IList_IBool) {
         std::vector<IBool> value_contents =
-            std::get<IList<IBool>>(value).contents;
+            dynamic_cast<IList<IBool> &>(*value).contents;
         ilist.contents.insert(ilist.contents.end(), value_contents.begin(),
                               value_contents.end());
         continue;
       }
-      ErrorHandler::halt(EListTypeMismatch{ilist, value});
+      ErrorHandler::halt(EListTypeMismatch{ilist, *value});
     }
 
-    return ilist;
+    return std::make_unique<IList<IBool>>(ilist);
   }
 
   assert(false && "invalid list type");
 }
 
-IValue ASTEvaluate::operator()(Boolean const &boolean) {
-  return {IBool(boolean.content, boolean.reference, true)};
+std::unique_ptr<IValue> ASTEvaluate::operator()(Boolean const &boolean) {
+  return std::make_unique<IBool>(boolean.content, boolean.reference, true);
 }
 
-IValue ASTEvaluate::operator()(Replace const &replace) {
+std::unique_ptr<IValue> ASTEvaluate::operator()(Replace const &replace) {
   // override use_globbing to false since the wildcards need to be handled here.
   EvaluationContext _context =
       EvaluationContext{context.task_scope, context.task_iteration, false};
   ASTEvaluate ast_visitor = {_context, state};
-  IValue input = std::visit(ast_visitor, *replace.input);
-  IValue filter = std::visit(ast_visitor, *replace.filter);
-  IValue product = std::visit(ast_visitor, *replace.product);
+  std::unique_ptr<IValue> input = std::visit(ast_visitor, *replace.input);
+  std::unique_ptr<IValue> filter = std::visit(ast_visitor, *replace.filter);
+  std::unique_ptr<IValue> product = std::visit(ast_visitor, *replace.product);
 
   bool immutability =
-      is_immutable(input) && is_immutable(filter) && is_immutable(product);
+      input->immutable && filter->immutable && product->immutable;
 
   // verify types.
-  if (!std::holds_alternative<IString>(filter))
-    ErrorHandler::halt(EReplaceTypeMismatch{replace, filter});
+  if (filter->get_type() != IType::IString)
+    ErrorHandler::halt(EReplaceTypeMismatch{replace, *filter});
 
-  if (!std::holds_alternative<IString>(product))
-    ErrorHandler::halt(EReplaceTypeMismatch{replace, product});
+  if (product->get_type() != IType::IString)
+    ErrorHandler::halt(EReplaceTypeMismatch{replace, *product});
 
   // fetch input.
-  IList<IString> input_parsed = autocast_strict<IList<IString>>(input);
+  IList<IString> input_parsed = input->autocast<IList<IString>>();
   IList<IString> output_parsed{{}, replace.reference, immutability};
 
-  std::string filter_str = std::get<IString>(filter).content;
-  std::string product_str = std::get<IString>(product).content;
+  std::string filter_str = dynamic_cast<IString &>(*filter).content;
+  std::string product_str = dynamic_cast<IString &>(*product).content;
 
   // convert to pure strings first...
   std::vector<std::string> algorithm_input;
@@ -439,10 +478,10 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
   try {
     algorithm_output =
         Wildcards::compute_replace(algorithm_input, filter_str, product_str);
-  } catch (LiteralsAdjacentWildcards &_) {
-    ErrorHandler::halt(EAdjacentWildcards{std::get<IString>(filter)});
-  } catch (LiteralsChunksLength &_) {
-    ErrorHandler::halt(EReplaceChunksLength{product});
+  } catch (LiteralsAdjacentWildcards &) {
+    ErrorHandler::halt(EAdjacentWildcards{dynamic_cast<IString &>(*filter)});
+  } catch (LiteralsChunksLength &) {
+    ErrorHandler::halt(EReplaceChunksLength{*product});
   }
 
   // convert back to interpreter types for tracking
@@ -451,7 +490,7 @@ IValue ASTEvaluate::operator()(Replace const &replace) {
         IString{str, replace.reference, immutability});
   }
 
-  return output_parsed;
+  return std::make_unique<IList<IString>>(output_parsed);
 }
 
 Interpreter::Interpreter(AST &ast, Setup &setup) {
@@ -487,10 +526,9 @@ std::optional<Field> Interpreter::find_field(std::string identifier,
 
 // if there is no default and field does not exist, return std::nullopt.
 // it is up to the caller to handle a missing mandatory field.
-std::optional<IValue>
-Interpreter::evaluate_field_default(std::string identifier,
-                                    EvaluationContext context,
-                                    std::optional<IValue> default_value) {
+std::optional<std::unique_ptr<IValue>> Interpreter::evaluate_field_default(
+    std::string identifier, EvaluationContext context,
+    std::optional<std::unique_ptr<IValue>> default_value) {
   std::optional<Field> field = find_field(identifier, context.task_scope);
   if (!field) {
     return default_value;
@@ -503,14 +541,17 @@ std::optional<T>
 Interpreter::evaluate_field_default_strict(std::string identifier,
                                            EvaluationContext context,
                                            std::optional<T> default_value) {
-  std::optional<IValue> value =
-      this->evaluate_field_default(identifier, context, default_value);
+  std::optional<std::unique_ptr<IValue>> default_casted =
+      default_value ? std::optional(std::make_unique<T>(*default_value))
+                    : std::nullopt;
+  std::optional<std::unique_ptr<IValue>> value =
+      this->evaluate_field_default(identifier, context, std::move(default_casted));
   if (!value)
     return std::nullopt;
-  return autocast_strict<T>(*value);
+  return (*value)->autocast<T>();
 }
 
-std::optional<IValue>
+std::optional<std::unique_ptr<IValue>>
 Interpreter::evaluate_field_optional(std::string identifier,
                                      EvaluationContext context) {
   std::optional<Field> field = find_field(identifier, context.task_scope);
@@ -523,10 +564,11 @@ template <typename T>
 std::optional<T>
 Interpreter::evaluate_field_optional_strict(std::string identifier,
                                             EvaluationContext context) {
-  std::optional<IValue> value = evaluate_field_optional(identifier, context);
+  std::optional<std::unique_ptr<IValue>> value =
+      evaluate_field_optional(identifier, context);
   if (!value)
     return std::nullopt;
-  return autocast_strict<T>(*value);
+  return (*value)->autocast<T>();
 }
 
 namespace PipelineJobs {
@@ -723,9 +765,9 @@ void Interpreter::build() {
     if (!this->state->topmost_task)
       this->state->topmost_task = task;
 
-    IValue identifier =
+    std::unique_ptr<IValue> identifier =
         evaluate_ast_object(task.identifier, {std::nullopt, std::nullopt});
-    IList<IString> identifiers = autocast_strict<IList<IString>>(identifier);
+    IList<IString> identifiers = identifier->autocast<IList<IString>>();
 
     std::shared_ptr<Task> task_ptr = std::make_shared<Task>(task);
     std::vector<IString> keys = identifiers.contents;
@@ -752,15 +794,15 @@ void Interpreter::build() {
   } else {
     task =
         this->state->topmost_task; // we've already checked that it's not empty
-    IValue task_iteration_ivalue =
+    std::unique_ptr<IValue> task_iteration_ivalue =
         evaluate_ast_object(task->identifier, {std::nullopt, std::nullopt});
-    if (!std::holds_alternative<IString>(task_iteration_ivalue)) {
+    if (task_iteration_ivalue->get_type() != IType::IString) {
       ErrorHandler::halt(EAmbiguousTask{*task});
     }
-    task_iteration =
-        std::get<IString>(
-            evaluate_ast_object(task->identifier, {std::nullopt, std::nullopt}))
-            .to_string();
+    task_iteration = dynamic_cast<IString &>(
+                         *evaluate_ast_object(task->identifier,
+                                              {std::nullopt, std::nullopt}))
+                         .to_string();
   }
 
   FrameGuard frame{EntryBuildFrame(task_iteration, task->reference)};

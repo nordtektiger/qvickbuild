@@ -1,13 +1,13 @@
 #include "driver.hpp"
-#include "cli/cli.hpp"
-#include "cli/colour.hpp"
-#include "cli/environment.hpp"
-#include "errors.hpp"
-#include "interpreter.hpp"
-#include "kal/platform.hpp"
-#include "lexer.hpp"
-#include "parser.hpp"
-#include "pipeline.hpp"
+#include "../cli/cli.hpp"
+#include "../cli/colour.hpp"
+#include "../cli/environment.hpp"
+#include "../errors/errors.hpp"
+#include "../interpreter/interpreter.hpp"
+#include "../kal/platform.hpp"
+#include "../lexer/lexer.hpp"
+#include "../parser/parser.hpp"
+#include "../system/pipeline.hpp"
 
 #include <cassert>
 #include <filesystem>

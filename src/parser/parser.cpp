@@ -1,8 +1,8 @@
 #include "parser.hpp"
-#include "errors.hpp"
-#include "lexer.hpp"
-#include "tracking.hpp"
-#include <iostream>
+#include "../errors/errors.hpp"
+#include "../errors/types.hpp"
+#include "../lexer/types.hpp"
+#include "../lexer/tracking.hpp"
 #include <memory>
 
 // equality operators for AST objects.

@@ -1,7 +1,7 @@
 #ifndef DRIVER_H
 #define DRIVER_H
 
-#include "cli/cli.hpp"
+#include "../cli/cli.hpp"
 #include <memory>
 #include <optional>
 #include <string>

@@ -1,9 +1,9 @@
 #ifndef PROCESSES_H
 #define PROCESSES_H
 
-#include "cli/cli.hpp"
+#include "../cli/cli.hpp"
+#include "../lexer/tracking.hpp"
 #include "pipeline.hpp"
-#include "tracking.hpp"
 #include <string>
 
 namespace PipelineJobs {

@@ -1,12 +1,13 @@
 #include "errors.hpp"
-#include "cli/colour.hpp"
-#include "interpreter.hpp"
-#include "tracking.hpp"
+#include "../cli/colour.hpp"
+#include "../interpreter/types.hpp"
+#include "../lexer/tracking.hpp"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <format>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <variant>
 
@@ -194,14 +195,30 @@ std::string ErrorRenderer::stringify_type<ASTObject>(ASTObject type) {
   }
 }
 
-template <> std::string ErrorRenderer::stringify_type<IValue>(IValue type) {
-  if (std::holds_alternative<IString>(type)) {
+template <> std::string ErrorRenderer::stringify_type<IValue &>(IValue &type) {
+  if (type.get_type() == IType::IString) {
     return "string";
-  } else if (std::holds_alternative<IBool>(type)) {
+  } else if (type.get_type() == IType::IBool) {
     return "bool";
-  } else if (std::holds_alternative<IList<IString>>(type)) {
+  } else if (type.get_type() == IType::IList_IString) {
     return "list<string>";
-  } else if (std::holds_alternative<IList<IBool>>(type)) {
+  } else if (type.get_type() == IType::IList_IBool) {
+    return "list<bool>";
+  } else {
+    assert(false && "attempt to stringify nonexistent type");
+  }
+}
+
+template <>
+std::string ErrorRenderer::stringify_type<std::unique_ptr<IValue>>(
+    std::unique_ptr<IValue> type) {
+  if (type->get_type() == IType::IString) {
+    return "string";
+  } else if (type->get_type() == IType::IBool) {
+    return "bool";
+  } else if (type->get_type() == IType::IList_IString) {
+    return "list<string>";
+  } else if (type->get_type() == IType::IList_IBool) {
     return "list<bool>";
   } else {
     assert(false && "attempt to stringify nonexistent type");
@@ -263,19 +280,19 @@ char const *ENoMatchingIdentifier::get_exception_msg() {
 }
 
 EListTypeMismatch::EListTypeMismatch(
-    std::variant<IList<IString>, IList<IBool>> list, IValue ivalue)
-    : list(list), faulty_ivalue(ivalue) {}
+    std::variant<IList<IString>, IList<IBool>> list, IValue &ivalue)
+    : list(list), faulty_ivalue(ivalue.clone()) {}
 
 std::string EListTypeMismatch::render_error(std::vector<unsigned char> config) {
-  ReferenceView obj_view = ErrorRenderer::get_reference_view(
-      config, std::visit(IVisitReference{}, faulty_ivalue));
+  ReferenceView obj_view =
+      ErrorRenderer::get_reference_view(config, faulty_ivalue->reference);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(obj_view, "faulty type here");
   return std::format(
       "{}{}error:{}{} an item of type '{}' cannot be stored in "
       "a list of type '{}'.{}\n{}",
       CLIColour::red(), CLIColour::bold(), CLIColour::reset(),
-      CLIColour::bold(), ErrorRenderer::stringify_type(faulty_ivalue),
+      CLIColour::bold(), ErrorRenderer::stringify_type(faulty_ivalue->clone()),
       ErrorRenderer::stringify_type(list), CLIColour::reset(), rendered_view);
 }
 
@@ -284,15 +301,15 @@ char const *EListTypeMismatch::get_exception_msg() {
 }
 
 EReplaceTypeMismatch::EReplaceTypeMismatch(Replace replace,
-                                           IValue faulty_ivalue)
-    : faulty_ivalue(faulty_ivalue) {
+                                           IValue &faulty_ivalue)
+    : faulty_ivalue(faulty_ivalue.clone()) {
   this->replace = replace;
 }
 
 std::string
 EReplaceTypeMismatch::render_error(std::vector<unsigned char> config) {
-  ReferenceView obj_view = ErrorRenderer::get_reference_view(
-      config, std::visit(IVisitReference{}, faulty_ivalue));
+  ReferenceView obj_view =
+      ErrorRenderer::get_reference_view(config, faulty_ivalue->reference);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(obj_view, "faulty type here");
   return std::format("{}{}error:{}{} the replacement operator can only operate "
@@ -305,12 +322,12 @@ char const *EReplaceTypeMismatch::get_exception_msg() {
   return "Replace type mismatch";
 }
 
-EReplaceChunksLength::EReplaceChunksLength(IValue replacement)
-    : replacement(replacement) {}
+EReplaceChunksLength::EReplaceChunksLength(IValue &replacement)
+    : replacement(replacement.clone()) {}
 
 std::string
 EReplaceChunksLength::render_error(std::vector<unsigned char> config) {
-  StreamReference ref = std::visit(IVisitReference{}, replacement);
+  StreamReference ref = replacement->reference;
   ReferenceView repl_view = ErrorRenderer::get_reference_view(config, ref);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(repl_view, "too many wildcards here");
@@ -325,15 +342,15 @@ char const *EReplaceChunksLength::get_exception_msg() {
   return "Invalid replace chunks length";
 }
 
-EVariableTypeMismatch::EVariableTypeMismatch(IValue variable,
+EVariableTypeMismatch::EVariableTypeMismatch(IValue &variable,
                                              std::string expected_type)
-    : variable(variable) {
+    : variable(variable.clone()) {
   this->expected_type = expected_type;
 }
 
 std::string
 EVariableTypeMismatch::render_error(std::vector<unsigned char> config) {
-  StreamReference var_ref = std::visit(IVisitReference{}, variable);
+  StreamReference var_ref = variable->reference;
   ReferenceView var_view = ErrorRenderer::get_reference_view(config, var_ref);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(var_view, "variable defined here");
@@ -341,7 +358,7 @@ EVariableTypeMismatch::render_error(std::vector<unsigned char> config) {
                      "be of type '{}', but was '{}'{}\n{}",
                      CLIColour::red(), CLIColour::bold(), CLIColour::reset(),
                      CLIColour::bold(), var_view.line_num, expected_type,
-                     ErrorRenderer::stringify_type(variable),
+                     ErrorRenderer::stringify_type(variable->clone()),
                      CLIColour::reset(), rendered_view);
 }
 
@@ -427,13 +444,13 @@ char const *EAmbiguousTask::get_exception_msg() {
   return "Ambiguous topmost task";
 }
 
-EDependencyFailed::EDependencyFailed(IValue dep, std::string dependency_value)
-    : dependency(dep) {
+EDependencyFailed::EDependencyFailed(IValue &dep, std::string dependency_value)
+    : dependency(dep.clone()) {
   this->dependency_value = dependency_value;
 }
 
 std::string EDependencyFailed::render_error(std::vector<unsigned char> config) {
-  StreamReference ref = std::visit(IVisitReference{}, dependency);
+  StreamReference ref = dependency->reference;
   ReferenceView dep_view = ErrorRenderer::get_reference_view(config, ref);
   std::string rendered_view =
       ErrorRenderer::get_rendered_view(dep_view, "dependency referred to here");
@@ -916,7 +933,8 @@ template <typename B> void ErrorHandler::halt [[noreturn]] (B build_error) {
   size_t thread_hash = std::hash<std::thread::id>{}(thread_id);
 
   std::unique_lock<std::mutex> guard(ErrorHandler::error_lock);
-  ErrorHandler::error_state[thread_hash] = std::make_unique<B>(build_error);
+  ErrorHandler::error_state[thread_hash] =
+      std::make_unique<B>(std::move(build_error));
   throw BuildException(build_error.get_exception_msg());
 }
 
@@ -926,7 +944,8 @@ template <typename B> void ErrorHandler::soft_report(B build_error) {
   size_t thread_hash = std::hash<std::thread::id>{}(thread_id);
 
   std::unique_lock<std::mutex> guard(ErrorHandler::error_lock);
-  ErrorHandler::error_state[thread_hash] = std::make_unique<B>(build_error);
+  ErrorHandler::error_state[thread_hash] =
+      std::make_unique<B>(std::move(build_error));
 }
 
 void ErrorHandler::trigger_report [[noreturn]] () {
