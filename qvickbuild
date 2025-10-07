@@ -1,6 +1,7 @@
 # general compiler arguments.
 compiler = "g++";
-flags_debug = "-g -O0 -Wall -Wextra -pedantic-errors -std=c++20 -fsanitize=address,undefined -D_GLIBCXX_DEBUG";
+flags_debug = "-g -O0 -Wall -Wextra -pedantic-errors -std=c++20",
+              "-fsanitize=address,undefined -D_GLIBCXX_DEBUG";
 # flags_debug = "-g -O0 -Wall -Wextra -pedantic-errors -std=c++20 -D_GLIBCXX_DEBUG";
 flags_release = "-O3 -Wall -Wextra -pedantic-errors -std=c++20";
 
@@ -26,8 +27,6 @@ install_dir = "/usr/bin";
 
 # abstract tasks for parallel object building.
 "build_objs_debug" {
-  # log_level = "quiet", "standard", "verbose";
-  # pty = true;
   visible = false;
   depends = objects_debug, headers;
   depends_parallel = true;

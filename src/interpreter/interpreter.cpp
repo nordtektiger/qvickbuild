@@ -12,11 +12,13 @@
 #include <memory>
 #include <ranges>
 
-#define DEPENDS "depends"
-#define DEPENDS_PARALLEL "depends_parallel"
-#define RUN "run"
-#define RUN_PARALLEL "run_parallel"
-#define VISIBLE "visible"
+#define OPT_DEPENDS "depends"
+#define OPT_DEPENDS_PARALLEL "depends_parallel"
+#define OPT_RUN "run"
+#define OPT_RUN_PARALLEL "run_parallel"
+#define OPT_VISIBLE "visible"
+#define OPT_SILENT "silent"
+#define OPT_CLI "cli"
 
 #define IMMUTABLE true
 #define MUTABLE false
@@ -498,7 +500,6 @@ Interpreter::Interpreter(AST &ast, Setup &setup) {
   this->state->ast = std::make_unique<AST>(ast);
   this->state->setup = setup;
 }
-//     : m_ast(ast), m_setup(setup) {};
 
 std::optional<Task> Interpreter::find_task(std::string identifier) {
   auto task_it = this->state->cached_tasks.find(identifier);
@@ -544,8 +545,8 @@ Interpreter::evaluate_field_default_strict(std::string identifier,
   std::optional<std::unique_ptr<IValue>> default_casted =
       default_value ? std::optional(std::make_unique<T>(*default_value))
                     : std::nullopt;
-  std::optional<std::unique_ptr<IValue>> value =
-      this->evaluate_field_default(identifier, context, std::move(default_casted));
+  std::optional<std::unique_ptr<IValue>> value = this->evaluate_field_default(
+      identifier, context, std::move(default_casted));
   if (!value)
     return std::nullopt;
   return (*value)->autocast<T>();
@@ -625,7 +626,7 @@ Interpreter::compute_latest_dependency_change(IList<IString> dependencies) {
 
     std::optional<IList<IString>> dependencies_nested =
         evaluate_field_optional_strict<IList<IString>>(
-            DEPENDS, {task, dependency.to_string()});
+            OPT_DEPENDS, {task, dependency.to_string()});
     if (dependencies_nested) {
       size_t modification_nested =
           compute_latest_dependency_change(*dependencies_nested);
@@ -679,7 +680,7 @@ void Interpreter::run_task(RunContext run_context) {
   std::shared_ptr<CLIEntryHandle> this_entry_handle;
 
   std::optional<IList<IString>> dependencies =
-      evaluate_field_optional_strict<IList<IString>>(DEPENDS,
+      evaluate_field_optional_strict<IList<IString>>(OPT_DEPENDS,
                                                      {task, task_iteration});
 
   // check for cached dependencies.
@@ -700,7 +701,8 @@ void Interpreter::run_task(RunContext run_context) {
   // handle is generated here because we know for a fact that the task will need
   // to be rebuilt - we have already checked that it isn't cached.
   std::optional<IBool> visible = evaluate_field_default_strict<IBool>(
-      VISIBLE, {task, task_iteration}, IBool(true, task.reference, IMMUTABLE));
+      OPT_VISIBLE, {task, task_iteration},
+      IBool(true, task.reference, IMMUTABLE));
   if (parent_iteration) {
     auto parent_entry_handle =
         CLI::get_entry_from_description(*parent_iteration);
@@ -717,24 +719,33 @@ void Interpreter::run_task(RunContext run_context) {
     IBool parallel_default = IBool(false, task.reference, IMMUTABLE);
     // it is safe to unwrap the std::optional because we have a default value.
     IBool parallel = *evaluate_field_default_strict<IBool>(
-        DEPENDS_PARALLEL, {task, task_iteration}, parallel_default);
+        OPT_DEPENDS_PARALLEL, {task, task_iteration}, parallel_default);
     solve_dependencies(*dependencies, task_iteration, parallel);
   }
 
   // execution related fields.
   std::optional<IList<IString>> command_expr =
-      evaluate_field_optional_strict<IList<IString>>(RUN,
+      evaluate_field_optional_strict<IList<IString>>(OPT_RUN,
                                                      {task, task_iteration});
   if (!command_expr) {
     this_entry_handle->set_status(CLIEntryStatus::Finished);
     return; // abstract task.
   }
-  IBool run_parallel_default = IBool(false, task.reference, true);
+  IBool run_parallel_default = IBool(false, task.reference, IMMUTABLE);
   IBool run_parallel = *evaluate_field_default_strict<IBool>(
-      RUN_PARALLEL, {task, task_iteration}, run_parallel_default);
+      OPT_RUN_PARALLEL, {task, task_iteration}, run_parallel_default);
+
+  IBool silent_default = IBool(false, task.reference, IMMUTABLE);
+  IBool silent = *evaluate_field_default_strict<IBool>(
+      OPT_SILENT, {task, task_iteration}, silent_default);
+
+  IBool cli_default = IBool(true, task.reference, IMMUTABLE);
+  IBool cli = *evaluate_field_default_strict<IBool>(
+      OPT_CLI, {task, task_iteration}, cli_default);
+
+  ExecutionOptions exec_options = {cli, silent};
 
   // execute task.
-  // LOG_STANDARD(CYAN << "»" << RESET << " starting " << task_iteration);
   if (this->state->setup.dry_run)
     return;
 
@@ -745,7 +756,8 @@ void Interpreter::run_task(RunContext run_context) {
 
   for (IString cmdline : command_expr->contents) {
     scheduler.schedule_job(std::make_shared<PipelineJobs::ExecuteJob>(
-        cmdline.to_string(), cmdline.reference, this_entry_handle));
+        cmdline.to_string(), cmdline.reference, this_entry_handle,
+        exec_options));
   }
   scheduler.send_and_await();
 
@@ -756,7 +768,6 @@ void Interpreter::run_task(RunContext run_context) {
 
   if (this_entry_handle)
     this_entry_handle->set_status(CLIEntryStatus::Finished);
-  // LOG_STANDARD(GREEN << "✓" << RESET << " finished " << task_iteration);
 }
 
 void Interpreter::build() {

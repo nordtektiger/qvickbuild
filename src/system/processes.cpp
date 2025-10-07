@@ -8,10 +8,12 @@
 
 PipelineJobs::ExecuteJob::ExecuteJob(
     std::string cmdline, StreamReference reference,
-    std::shared_ptr<CLIEntryHandle> entry_handle) {
+    std::shared_ptr<CLIEntryHandle> entry_handle,
+    ExecutionOptions options) {
   this->cmdline = cmdline;
   this->reference = reference;
   this->entry_handle = entry_handle;
+  this->options = options;
 }
 
 void PipelineJobs::ExecuteJob::compute_fallback() noexcept {
@@ -28,12 +30,14 @@ void PipelineJobs::ExecuteJob::compute_fallback() noexcept {
   do {
     status = process.read_output(buffer);
     if (!buffer.empty()) {
-      CLI::write_to_log(buffer);
+      if (!this->options.silent)
+        CLI::write_to_log(buffer);
       buffer.clear();
     }
   } while (status == ProcessReadStatus::DataRead);
   if (!buffer.empty())
-    CLI::write_to_log(buffer);
+    if (!this->options.silent)
+      CLI::write_to_log(buffer);
 
   if (status == ProcessReadStatus::ExitFailure) {
     ErrorHandler::soft_report(ENonZeroProcess{cmdline, reference});
@@ -49,12 +53,15 @@ void PipelineJobs::ExecuteJob::compute() noexcept {
   CLI::write_verbose(this->cmdline);
 
   SystemProcess<LaunchType::PTY> process(cmdline);
-  if (process.dispatch_process() == ProcessDispatchStatus::InternalError) {
+  if (this->options.cli &&
+      process.dispatch_process() == ProcessDispatchStatus::InternalError) {
     // if pty fails, fall back to exec.
     if (CLI::is_interactive())
       CLI::write_to_log(std::format(
           "{}{}warning:{} dispatching pty failed, falling back to execv.\n",
           CLIColour::yellow(), CLIColour::bold(), CLIColour::reset()));
+    return this->compute_fallback();
+  } else if (!this->options.cli) {
     return this->compute_fallback();
   }
 
@@ -64,12 +71,14 @@ void PipelineJobs::ExecuteJob::compute() noexcept {
   do {
     status = process.read_output(buffer);
     if (!buffer.empty()) {
-      CLI::write_to_log(buffer);
+      if (!this->options.silent)
+        CLI::write_to_log(buffer);
       buffer.clear();
     }
   } while (status == ProcessReadStatus::DataRead);
   if (!buffer.empty())
-    CLI::write_to_log(buffer);
+    if (!this->options.silent)
+      CLI::write_to_log(buffer);
 
   if (status == ProcessReadStatus::ExitFailure) {
     ErrorHandler::soft_report(ENonZeroProcess{cmdline, reference});
