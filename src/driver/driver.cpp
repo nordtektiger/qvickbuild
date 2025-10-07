@@ -93,15 +93,12 @@ std::string get_version_string() {
 }
 
 int Driver::run() {
-  // LOG_STANDARD(CLIColour::bold() << "warning: you are running qvickbuild beta
-  // "
-  //                   << get_version_string() << CLIColour::reset());
-
   // initialize required subsystems.
   CLICapabilities capabilities = CLIEnvironment::detect_cli_capabilities();
   LogLevel log_level = this->state->setup.logging_level;
   CLIOptions cli_options{log_level, capabilities};
-  CLI::initialize(cli_options);
+  if (log_level != LogLevel::Quiet)
+    CLI::initialize(cli_options);
   Pipeline::initialize(std::thread::hardware_concurrency());
 
   // config needs to be initialized out of scope so that

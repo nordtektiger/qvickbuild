@@ -50,7 +50,7 @@ void PipelineJobs::ExecuteJob::compute_fallback() noexcept {
 
 void PipelineJobs::ExecuteJob::compute() noexcept {
   this->entry_handle->set_status(CLIEntryStatus::Building);
-  CLI::write_verbose(this->cmdline);
+  CLI::write_verbose(this->cmdline + "\n");
 
   SystemProcess<LaunchType::PTY> process(cmdline);
   if (this->options.cli &&
