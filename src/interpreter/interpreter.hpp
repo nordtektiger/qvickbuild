@@ -4,6 +4,7 @@
 #include "../driver/driver.hpp"
 #include "../errors/types.hpp"
 #include "../parser/types.hpp"
+#include "../cli/cli.hpp"
 #include "types.hpp"
 #include <memory>
 #include <mutex>
@@ -37,7 +38,7 @@ struct DependencyStatus {
 struct RunContext {
   Task task;
   std::string task_iteration;
-  std::optional<std::string> parent_iteration;
+  std::optional<std::shared_ptr<CLIEntryHandle>> parent_handle;
   std::vector<std::shared_ptr<Frame>> parent_frame_stack;
 };
 
@@ -68,7 +69,7 @@ private:
   void run_task(RunContext);
   size_t compute_latest_dependency_change(IList<IString> dependencies);
   void solve_dependencies(IList<IString> dependencies,
-                          std::string parent_iteration, bool parallel);
+                          std::shared_ptr<CLIEntryHandle> parent_iteration, bool parallel);
 
 public:
   Interpreter(AST &ast, Setup &setup);

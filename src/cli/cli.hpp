@@ -77,8 +77,6 @@ private:
   static std::vector<LogEntry> log_buffer;
   static std::vector<std::string> suffix_buffer;
   static std::vector<std::shared_ptr<CLIEntryHandle>> entry_handles;
-  static std::optional<std::shared_ptr<CLIEntryHandle>>
-      search_handle_recursive(std::string, std::shared_ptr<CLIEntryHandle>);
 
   static std::mutex io_modify_lock;
 
@@ -107,8 +105,6 @@ public:
   static std::shared_ptr<CLIEntryHandle>
   derive_entry_from(std::shared_ptr<CLIEntryHandle>, std::string,
                     CLIEntryStatus, bool);
-  static std::shared_ptr<CLIEntryHandle>
-      get_entry_from_description(std::string);
 
   static void write_to_log(std::string);
   static void write_verbose(std::string);

@@ -26,6 +26,13 @@ void Pipeline::stop_async() {
   Pipeline::queue_notifier.release();
 }
 
+void Pipeline::abort_queued() {
+  for (std::shared_ptr<PipelineJob> &job : Pipeline::job_queue) {
+    job->mark_aborted();
+    job->notifier.release(); // allow waiting client to return.
+  }
+}
+
 void Pipeline::push_to_queue(std::shared_ptr<PipelineJob> job_ptr) {
   std::unique_lock<std::mutex> guard(Pipeline::queue_lock);
   Pipeline::job_queue.push_back(job_ptr);
@@ -52,7 +59,11 @@ void Pipeline::pool_loop() {
     guard.unlock();
 
     // execute work.
-    Pipeline::job_compute(job);
+    if (!job->was_aborted())
+      Pipeline::job_compute(job);
+
+    if (job->had_error())
+      Pipeline::abort_queued();
   }
 }
 
@@ -64,6 +75,8 @@ void Pipeline::job_compute(std::shared_ptr<PipelineJob> job_ptr) {
 void PipelineJob::await_completion() { this->notifier.acquire(); }
 void PipelineJob::report_error() { this->error = true; }
 bool PipelineJob::had_error() const { return this->error; }
+void PipelineJob::mark_aborted() { this->aborted = true; }
+bool PipelineJob::was_aborted() const { return this->aborted; }
 
 template <typename M>
 PipelineScheduler<M>::PipelineScheduler(
@@ -100,6 +113,19 @@ template bool
 PipelineScheduler<PipelineSchedulingMethod::Managed>::had_errors();
 template bool
 PipelineScheduler<PipelineSchedulingMethod::Unbound>::had_errors();
+
+template <typename M> bool PipelineScheduler<M>::was_aborted() {
+  for (std::shared_ptr<PipelineJob> const &job_ptr : this->buffer) {
+    if (job_ptr->was_aborted())
+      return true;
+  }
+  return false;
+}
+
+template bool
+PipelineScheduler<PipelineSchedulingMethod::Managed>::was_aborted();
+template bool
+PipelineScheduler<PipelineSchedulingMethod::Unbound>::was_aborted();
 
 template <>
 void PipelineScheduler<PipelineSchedulingMethod::Managed>::send_and_await() {

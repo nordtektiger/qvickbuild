@@ -106,34 +106,6 @@ CLI::derive_entry_from(std::shared_ptr<CLIEntryHandle> parent,
   return handle_ptr;
 }
 
-// tree search.
-std::shared_ptr<CLIEntryHandle>
-CLI::get_entry_from_description(std::string description) {
-  std::unique_lock<std::mutex> guard(CLI::io_modify_lock);
-  for (std::shared_ptr<CLIEntryHandle> const &handle_ptr : CLI::entry_handles) {
-    std::optional<std::shared_ptr<CLIEntryHandle>> target;
-    if ((target = CLI::search_handle_recursive(description, handle_ptr))) {
-      return *target;
-    }
-  }
-  assert(false && "attempt to get nonexistent handle from description");
-}
-
-std::optional<std::shared_ptr<CLIEntryHandle>>
-CLI::search_handle_recursive(std::string description,
-                             std::shared_ptr<CLIEntryHandle> handle_ptr) {
-  if (handle_ptr->get_description() == description)
-    return handle_ptr;
-  for (std::shared_ptr<CLIEntryHandle> const &child_ptr :
-       handle_ptr->children) {
-    std::optional<std::shared_ptr<CLIEntryHandle>> target =
-        search_handle_recursive(description, child_ptr);
-    if (target)
-      return target;
-  }
-  return std::nullopt;
-}
-
 bool CLI::is_interactive() { return CLI::cli_options.capabilities.movement; }
 
 void CLI::initialize(CLIOptions cli_options) {

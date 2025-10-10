@@ -15,15 +15,19 @@ class PipelineJob {
 private:
   std::binary_semaphore notifier;
   std::atomic_bool error;
+  std::atomic_bool aborted;
 
 public:
-  PipelineJob() : notifier{0}, error(false) {};
+  PipelineJob() : notifier{0}, error(false), aborted(false) {};
 
   virtual void compute() noexcept = 0;
   void await_completion();
 
   void report_error();
   bool had_error() const;
+
+  void mark_aborted();
+  bool was_aborted() const;
 };
 
 namespace PipelineJobs {
@@ -53,6 +57,7 @@ public:
   static void initialize(size_t);
   static void stop_sync();
   static void stop_async();
+  static void abort_queued();
 };
 
 enum class PipelineSchedulingTopography {
@@ -74,6 +79,7 @@ private:
 public:
   void schedule_job(std::shared_ptr<PipelineJob>);
   bool had_errors();
+  bool was_aborted();
   void send_and_await();
 
   std::vector<std::shared_ptr<PipelineJob>> get_buffer();

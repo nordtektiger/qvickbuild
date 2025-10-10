@@ -640,9 +640,9 @@ Interpreter::compute_latest_dependency_change(IList<IString> dependencies) {
   return latest_modification;
 }
 
-void Interpreter::solve_dependencies(IList<IString> dependencies,
-                                     std::string parent_iteration,
-                                     bool parallel) {
+void Interpreter::solve_dependencies(
+    IList<IString> dependencies,
+    std::shared_ptr<CLIEntryHandle> parent_iteration, bool parallel) {
   auto topography = parallel ? PipelineSchedulingTopography::Parallel
                              : PipelineSchedulingTopography::Sequential;
   auto scheduler =
@@ -667,7 +667,8 @@ void Interpreter::solve_dependencies(IList<IString> dependencies,
 void Interpreter::run_task(RunContext run_context) {
   Task task = run_context.task;
   std::string task_iteration = run_context.task_iteration;
-  std::optional<std::string> parent_iteration = run_context.parent_iteration;
+  std::optional<std::shared_ptr<CLIEntryHandle>> parent_iteration =
+      run_context.parent_handle;
 
   // check for recursive dependencies.
   bool recursive = StaticVerify::find_recursive_task(
@@ -704,10 +705,8 @@ void Interpreter::run_task(RunContext run_context) {
       OPT_VISIBLE, {task, task_iteration},
       IBool(true, task.reference, IMMUTABLE));
   if (parent_iteration) {
-    auto parent_entry_handle =
-        CLI::get_entry_from_description(*parent_iteration);
     this_entry_handle =
-        CLI::derive_entry_from(parent_entry_handle, task_iteration,
+        CLI::derive_entry_from(*run_context.parent_handle, task_iteration,
                                CLIEntryStatus::Scheduled, *visible);
   } else {
     this_entry_handle = CLI::generate_entry(
@@ -720,7 +719,7 @@ void Interpreter::run_task(RunContext run_context) {
     // it is safe to unwrap the std::optional because we have a default value.
     IBool parallel = *evaluate_field_default_strict<IBool>(
         OPT_DEPENDS_PARALLEL, {task, task_iteration}, parallel_default);
-    solve_dependencies(*dependencies, task_iteration, parallel);
+    solve_dependencies(*dependencies, this_entry_handle, parallel);
   }
 
   // execution related fields.
@@ -766,7 +765,7 @@ void Interpreter::run_task(RunContext run_context) {
     ErrorHandler::trigger_report();
   }
 
-  if (this_entry_handle)
+  if (!scheduler.was_aborted())
     this_entry_handle->set_status(CLIEntryStatus::Finished);
 }
 
