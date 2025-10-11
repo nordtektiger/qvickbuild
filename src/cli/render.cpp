@@ -227,7 +227,7 @@ void CLIRenderer::draw_legacy(std::vector<std::string> logs,
     std::cout << log;
   }
   for (std::string const &log : suffix) {
-    std::cout << log;
+    std::cout << log << "\n";
   }
   CLIRenderer::flush();
 }
