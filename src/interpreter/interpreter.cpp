@@ -745,8 +745,12 @@ void Interpreter::run_task(RunContext run_context) {
   ExecutionOptions exec_options = {cli, silent};
 
   // execute task.
-  if (this->state->setup.dry_run)
+  if (this->state->setup.dry_run) {
+    // commands should still be sent to stdout.
+    for (IString cmdline : command_expr->contents)
+      CLI::write_standard(cmdline.to_string() + "\n");
     return;
+  }
 
   auto topography = run_parallel ? PipelineSchedulingTopography::Parallel
                                  : PipelineSchedulingTopography::Sequential;
