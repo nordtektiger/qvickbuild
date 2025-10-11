@@ -1,8 +1,6 @@
 #ifndef INTERPRETER_TYPES_HPP
 #define INTERPRETER_TYPES_HPP
 
-#define IVALUE_REF(x) ((ICoreType) * x).reference
-
 #include "../lexer/tracking.hpp"
 #include "../lexer/types.hpp"
 #include <string>
