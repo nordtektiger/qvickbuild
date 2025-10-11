@@ -37,11 +37,8 @@ std::vector<unsigned char> Driver::get_config() {
                                       {});
   }
   case InputMethod::Stdin: {
-    std::string line;
-    std::string all;
-    while (getline(std::cin, line))
-      all += line;
-    return std::vector<unsigned char>(all.begin(), all.end());
+    std::istreambuf_iterator<char> begin(std::cin), end;
+    return std::vector<unsigned char>(begin, end);
   }
   }
   // code execution will never get here (let's hope)
@@ -75,20 +72,6 @@ void Driver::unwind_errors(std::vector<unsigned char> config) {
     }
     CLI::write_to_suffix(
         std::format("{}╰ end.{}", CLIColour::red(), CLIColour::reset()));
-  }
-}
-
-std::string get_version_string() {
-  KALPlatformType platform = KALPlatform::current();
-  switch (platform) {
-  case KALPlatformType::Linux:
-    return "v0.9.0/kal-linux";
-  case KALPlatformType::Windows:
-    return "v0.9.0/kal-windows";
-  case KALPlatformType::Apple:
-    return "v0.9.0/kal-apple";
-  default:
-    assert(false && "driver encountered an unrecognized kal platform");
   }
 }
 

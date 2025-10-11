@@ -89,3 +89,4 @@ test_files = "./tests/test-*";
 test_files as i_test {
   run = i_test: "*" -> "[binary] --configfile * > /dev/null";
 }
+

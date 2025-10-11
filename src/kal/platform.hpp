@@ -8,6 +8,8 @@
 /* this file should be included in all kal submodules so that the platform
  * macros are defined properly. */
 
+#include <string>
+
 #if defined(__linux__)
 #define kal_linux
 #elif defined(_WIN32)
@@ -20,6 +22,8 @@
 #error "Unsupported KAL platform."
 #endif
 
+#define QVICKBUILD_VERSION "v0.9.0"
+
 enum class KALPlatformType {
   Linux,
   Windows,
@@ -28,6 +32,7 @@ enum class KALPlatformType {
 
 namespace KALPlatform {
 KALPlatformType current();
+std::string get_version_string();
 }
 
 #endif

@@ -1,3 +1,4 @@
+#include "../kal/platform.hpp"
 #include "driver.hpp"
 #include <iostream>
 #include <string>
@@ -29,14 +30,20 @@ int main(int argc, char **argv) {
       setup.logging_level = LogLevel::Verbose;
     } else if (*arg_it == "--dry-run") {
       setup.dry_run = true;
+    } else if (*arg_it == "--version") {
+      std::cout << "qvickbuild " << KALPlatform::get_version_string()
+                << std::endl;
+      exit(EXIT_SUCCESS);
     } else if (*arg_it == "--help") {
       std::cout << "Usage: qvickbuild [arguments] [task]\n"
+                   "Arguments:\n"
                    "  --stdin: reads config from stdin\n"
                    "  --configfile [file]: reads config from specified file\n"
                    "  --log-quiet: sets logging level to quiet\n"
                    "  --log-standard: sets logging level to standard\n"
                    "  --log-verbose: sets logging level to verbose\n"
-                   "  --dry-run: doesn't execute any commands\n"
+                   "  --dry-run: prevents the execution of any commands\n"
+                   "  --version: emits qvickbuild version\n"
                    "  --help: shows this message and exits\n";
       exit(EXIT_SUCCESS);
     } else if (!setup.task) {
@@ -49,15 +56,14 @@ int main(int argc, char **argv) {
   }
 
   // run driver
-  // try {
-  Driver driver = Driver(setup);
-  return driver.run();
-  // } catch (const std::exception &e) {
-  //   std::cerr << "! <Fatal crash>\n! The Qvickbuild driver threw an unhandled
-  //   "
-  //                "exception. This is an internal bug and should be reported."
-  //             << std::endl;
-  //   std::cerr << "! Error data: " << e.what() << std::endl;
-  //   exit(EXIT_FAILURE);
-  // }
+  try {
+    Driver driver = Driver(setup);
+    return driver.run();
+  } catch (const std::exception &e) {
+    std::cerr << "! <Fatal crash>\n! The Qvickbuild driver threw an unhandled"
+                 "exception. This is an internal bug and should be reported."
+              << std::endl;
+    std::cerr << "! Error data: " << e.what() << std::endl;
+    exit(EXIT_FAILURE);
+  }
 }
