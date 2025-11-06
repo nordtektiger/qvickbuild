@@ -4,7 +4,6 @@
 #include "../cli/environment.hpp"
 #include "../errors/errors.hpp"
 #include "../interpreter/interpreter.hpp"
-#include "../kal/platform.hpp"
 #include "../lexer/lexer.hpp"
 #include "../parser/parser.hpp"
 #include "../system/pipeline.hpp"
@@ -17,22 +16,32 @@
 #include <iterator>
 #include <thread>
 
-Driver::Driver(Setup setup) {
-  this->state = std::make_unique<DriverState>(DriverState{setup});
-}
+/*!
+ * constructs driver from setup options.
+ */
+Driver::Driver(Setup setup) : setup(setup) {}
+
+/*!
+ * \return default options for running the driver.
+ */
 Setup Driver::default_setup() {
   return Setup{std::nullopt, InputMethod::ConfigFile, "./qvickbuild",
                LogLevel::Standard, false};
 }
 
+/*!
+ * reads the configuration source using the method indicated in
+ * setup.input_method
+ * \return contents of configuration source in a std::vector<unsigned char>
+ */
 std::vector<unsigned char> Driver::get_config() {
-  switch (this->state->setup.input_method) {
+  switch (this->setup.input_method) {
   case InputMethod::ConfigFile: {
-    if (!std::filesystem::is_regular_file(this->state->setup.input_file))
-      ErrorHandler::halt(EInvalidInputFile{this->state->setup.input_file});
-    std::ifstream config_file(this->state->setup.input_file, std::ios::binary);
+    if (!std::filesystem::is_regular_file(this->setup.input_file))
+      ErrorHandler::halt(EInvalidInputFile{this->setup.input_file});
+    std::ifstream config_file(this->setup.input_file, std::ios::binary);
     if (!config_file.is_open())
-      ErrorHandler::halt(EInvalidInputFile{this->state->setup.input_file});
+      ErrorHandler::halt(EInvalidInputFile{this->setup.input_file});
     return std::vector<unsigned char>(std::istreambuf_iterator(config_file),
                                       {});
   }
@@ -41,12 +50,17 @@ std::vector<unsigned char> Driver::get_config() {
     return std::vector<unsigned char>(begin, end);
   }
   }
-  // code execution will never get here (let's hope)
-  // keeps the compiler quiet
+  // code execution will never get here (let's hope) - prevents the compiler
+  // from warning about possible path without a return value.
   assert(false && "driver encountered an unrecognized input method");
   __builtin_unreachable();
 }
 
+/*!
+ * unwinds and emits the error stack provided by ErrorHandler, using the
+ * configuration source passed.
+ * \param config the configuration source to refer to.
+ */
 void Driver::unwind_errors(std::vector<unsigned char> config) {
   bool verbose_threads = ErrorHandler::get_errors().size() > 1;
   std::unordered_map<size_t, std::vector<std::shared_ptr<Frame>>> frames =
@@ -75,10 +89,15 @@ void Driver::unwind_errors(std::vector<unsigned char> config) {
   }
 }
 
+/*!
+ * runs the driver. the driver will initialise the required subsystems, and then
+ * proceed with fetching, lexing, parsing, and building the configuration.
+ * \return EXIT_FAILURE on failure, EXIT_SUCCESS on success.
+ */
 int Driver::run() {
   // initialize required subsystems.
   CLICapabilities capabilities = CLIEnvironment::detect_cli_capabilities();
-  LogLevel log_level = this->state->setup.logging_level;
+  LogLevel log_level = this->setup.logging_level;
   CLIOptions cli_options{log_level, capabilities};
   if (log_level != LogLevel::Quiet)
     CLI::initialize(cli_options);
@@ -102,7 +121,7 @@ int Driver::run() {
     AST ast(parser.parse_tokens());
 
     // build task.
-    Interpreter interpreter(ast, this->state->setup);
+    Interpreter interpreter(ast, this->setup);
     interpreter.build();
 
   } catch (BuildException &_) {

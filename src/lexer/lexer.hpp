@@ -1,10 +1,12 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-// macro madness - this just generates the appropriate function signatures,
-// along with a vector of lambda functions calling every rule.
-// [note]: This does __not__ automatically match tokens inside of formatted
-// strings.
+/*!
+ * macro madness - this just generates the appropriate function signatures,
+ * along with a vector of lambda functions calling every rule.
+ * note: This does __not__ automatically match tokens inside of formatted
+ * strings.
+ */
 #define LEXING_RULES(_MACRO)                                                   \
   _MACRO(skip_whitespace_comments)                                             \
   _MACRO(match_equals)                                                         \
@@ -31,7 +33,9 @@
 #include <optional>
 #include <vector>
 
-// work class.
+/*!
+ * lexes a configuration source.
+ */
 class Lexer {
 private:
   std::vector<unsigned char> m_input;
@@ -52,9 +56,16 @@ private:
   std::optional<std::vector<Token>> parse_escaped_literal();
   std::optional<unsigned char> parse_escaped_symbol();
 
-
 public:
+  /*!
+   * initialises the lexer with a configuration source.
+   * \param input_bytes configuration source
+   */
   Lexer(std::vector<unsigned char> input_bytes);
+  /*!
+   * runs the lexer and produces a token stream.
+   * \return token stream in the form of a std::vector<Token>
+   */
   std::vector<Token> get_token_stream();
 };
 
