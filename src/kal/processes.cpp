@@ -7,7 +7,13 @@
 #include "utmp.h"
 #include <cassert>
 #include <cstring>
+
+#if defined(kal_linux)
 #include <pty.h>
+#elif defined(kal_apple)
+#include <util.h>
+#endif
+
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
